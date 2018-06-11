@@ -11,7 +11,7 @@ from chainercv import utils
 
 class FasterRCNNFPNResNet101(chainer.Chain):
 
-    _mean = np.array((122.7717, 115.9465, 102.9801))
+    _mean = np.array((122.7717, 115.9465, 102.9801))[:, None, None]
     _min_size = 800
     _max_size = 1333
     _stride = 32
@@ -25,9 +25,9 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
     def __call__(self, x):
         hs = self.extractor(x)
-        rpn_locs, rpn_confs, rois, hs = self.rpn(hs)
-        locs, confs = self.head(hs)
-        return rpn_locs, rpn_confs, rois, locs, confs
+        rpn_locs, rpn_confs, rois, roi_indices = self.rpn(hs)
+        locs, confs = self.head(hs, rois, roi_indices)
+        return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
 
     def predict(self, imgs):
         resized_imgs = []
@@ -38,7 +38,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
                 scale = self._max_size / max(H, W)
             img = transforms.resize(
                 img, (int(H * scale), int(W * scale)))
-            img -= self._mean[:, None, None]
+            img -= self._mean
             resized_imgs.append(img)
 
         size = np.array([img.shape[1:] for img in resized_imgs]).max(axis=0)
@@ -49,7 +49,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             x[i, :, :H, :W] = img
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            _, _, rois, locs, confs = self(x)
+            _, _, rois, roi_indices, locs, confs = self(x)
 
         bboxes = []
         labels = []
@@ -58,8 +58,8 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             raw_bbox = []
             raw_score = []
             for l, scale in enumerate((4, 8, 16, 32)):
-                mask = rois[l][:, 0] == i
-                roi_l = rois[l][mask, 1:]
+                mask = roi_indices[l] == i
+                roi_l = rois[l][mask]
                 loc_l = locs[l].array[mask]
                 conf_l = confs[l].array[mask]
 
@@ -107,7 +107,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             labels.append(label)
             scores.append(score)
 
-        return x + self._mean[:, None, None], bboxes, labels, scores
+        return x + self._mean, bboxes, labels, scores
 
 
 class FPNResNet101(chainer.Chain):
@@ -145,7 +145,6 @@ class RPN(chainer.Chain):
     _nms_thresh = 0.7
     _nms_limit_pre = 1000
     _nms_limit_post = 1000
-    _roi_resolution = 7
 
     def __init__(self):
         super().__init__()
@@ -158,7 +157,7 @@ class RPN(chainer.Chain):
         locs = []
         confs = []
         rois = []
-        ys = []
+        roi_indices = []
         for l, x in enumerate(xs):
             h = F.relu(self.conv(x))
 
@@ -180,6 +179,7 @@ class RPN(chainer.Chain):
             default_roi = self.xp.array(default_roi)
 
             roi = []
+            roi_index = []
             for i in range(x.shape[0]):
                 loc_i = loc.array[i]
                 conf_i = conf.array[i]
@@ -198,20 +198,18 @@ class RPN(chainer.Chain):
                     roi_i, self._nms_thresh, limit=self._nms_limit_post)
                 roi_i = roi_i[indices]
 
-                roi.append(
-                    self.xp.hstack((self.xp.ones((len(roi_i), 1)) * i, roi_i)))
+                roi.append(roi_i)
+                roi_index.append(self.xp.ones(len(roi_i)) * i)
 
-            roi = self.xp.vstack(roi).astype(np.float32)
-            rois.append(roi)
+            rois.append(self.xp.vstack(roi).astype(np.float32))
+            roi_indices.append(self.xp.concatenate(roi_index).astype(np.int32))
 
-            y = _roi_pooling_2d(
-                x, roi, self._roi_resolution, self._roi_resolution, 1)
-            ys.append(y)
-
-        return locs, confs, rois, ys
+        return locs, confs, rois, roi_indices
 
 
 class Head(chainer.Chain):
+
+    _roi_size = 7
 
     def __init__(self, n_class):
         super().__init__()
@@ -221,11 +219,15 @@ class Head(chainer.Chain):
             self.loc = L.Linear(n_class * 4)
             self.conf = L.Linear(n_class)
 
-    def __call__(self, xs):
+    def __call__(self, xs, rois, roi_indices):
         locs = []
         confs = []
-        for x in xs:
-            h = F.reshape(x, (x.shape[0], -1))
+        for l, x in enumerate(xs):
+            roi = self.xp.hstack((roi_indices[l][:, None], rois[l])) \
+                         .astype(np.float32)
+            h = _roi_pooling_2d(x, roi, self._roi_size, self._roi_size, 1)
+
+            h = F.reshape(h, (h.shape[0], -1))
             h = F.relu(self.fc6(h))
             h = F.relu(self.fc7(h))
 
