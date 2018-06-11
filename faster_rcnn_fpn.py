@@ -6,6 +6,7 @@ import chainer.links as L
 
 import chainercv
 from chainercv import transforms
+from chainercv import utils
 
 
 class FasterRCNNFPNResNet101(chainer.Chain):
@@ -23,7 +24,8 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             self.head = Head(n_fg_class + 1)
 
     def __call__(self, x):
-        return self.extractor(x)
+        hs = self.extractor(x)
+        _, _, rois, rpn_hs = self.rpn(hs)
 
     def predict(self, imgs):
         resized_imgs = []
@@ -45,7 +47,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             x[i, :, :H, :W] = img
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            h2, h3, h4, h5 = self(x)
+            self(x)
 
 
 class FPNResNet101(chainer.Chain):
@@ -79,7 +81,11 @@ class FPNResNet101(chainer.Chain):
 
 class RPN(chainer.Chain):
 
-    _anchors = (0, 1, 2)
+    _anchors = (0.5, 1, 2)
+    _nms_thresh = 0.7
+    _nms_limit_pre = 1000
+    _nms_limit_post = 1000
+    _roi_resolution = 7
 
     def __init__(self):
         super().__init__()
@@ -88,8 +94,59 @@ class RPN(chainer.Chain):
             self.loc = L.Convolution2D(len(self._anchors) * 4, 1)
             self.conf = L.Convolution2D(len(self._anchors), 1)
 
-    def __call__(self, x):
-        pass
+    def __call__(self, xs):
+        locs = []
+        confs = []
+        rois = []
+        ys = []
+        for l, x in enumerate(xs):
+            h = F.relu(self.conv(x))
+
+            loc = self.loc(h)
+            loc = F.transpose(loc, (0, 2, 3, 1))
+            loc = F.reshape(loc, (loc.shape[0], -1, 4))
+            locs.append(loc)
+
+            conf = self.conf(h)
+            conf = F.transpose(conf, (0, 2, 3, 1))
+            conf = F.reshape(conf, (conf.shape[0], -1))
+            confs.append(conf)
+
+            _, _, H, W = x.shape
+            u, v, ar = np.meshgrid(
+                np.arange(H), np.arange(W), self._anchors)
+            default_roi = np.stack(
+                (u, v, ar, 1 / ar)).reshape((4, -1)).transpose()
+            default_roi = self.xp.array(default_roi)
+
+            roi = []
+            for i in range(x.shape[0]):
+                # loc_i = loc.array[i]
+                conf_i = conf.array[i]
+
+                roi_i = default_roi.copy()
+                roi_i[:, :2] -= roi_i[:, 2:] / 2
+                roi_i[:, 2:] += roi_i[:, :2]
+
+                order = self.xp.argsort(-conf_i)[:self._nms_limit_pre]
+                roi_i = roi_i[order]
+                conf_i = conf_i[order]
+
+                indices = utils.non_maximum_suppression(
+                    roi_i, self._nms_thresh, limit=self._nms_limit_post)
+                roi_i = roi_i[indices]
+
+                roi.append(
+                    self.xp.hstack((self.xp.ones((len(roi_i), 1)) * i, roi_i)))
+
+            roi = self.xp.vstack(roi).astype(np.float32)
+            rois.append(roi)
+
+            y = _roi_pooling_2d(
+                x, roi, self._roi_resolution, self._roi_resolution, 1)
+            ys.append(y)
+
+        return locs, confs, rois, ys
 
 
 class Head(chainer.Chain):
@@ -103,8 +160,17 @@ class Head(chainer.Chain):
             self.conf = L.Linear(n_class)
 
     def __call__(self, x):
-        pass
+        h = F.relu(self.fc6(x))
+        h = F.relu(self.fc7(x))
+        loc = self.loc(h)
+        conf = self.conf(h)
+        return loc, conf
 
 
 def _upsample(x):
     return F.unpooling_2d(x, 2, cover_all=False)
+
+
+def _roi_pooling_2d(x, rois, outh, outw, spatial_scale):
+    return F.roi_pooling_2d(
+        x, rois[:, [0, 2, 1, 4, 3]], outh, outw, spatial_scale)
