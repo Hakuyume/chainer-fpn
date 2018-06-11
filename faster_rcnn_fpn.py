@@ -25,7 +25,9 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
     def __call__(self, x):
         hs = self.extractor(x)
-        _, _, rois, rpn_hs = self.rpn(hs)
+        rpn_locs, rpn_confs, rois, hs = self.rpn(hs)
+        locs, confs = self.head(hs)
+        return rpn_locs, rpn_confs, rois, locs, confs
 
     def predict(self, imgs):
         resized_imgs = []
@@ -47,7 +49,65 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             x[i, :, :H, :W] = img
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            self(x)
+            _, _, rois, locs, confs = self(x)
+
+        bboxes = []
+        labels = []
+        scores = []
+        for i in range(x.shape[0]):
+            raw_bbox = []
+            raw_score = []
+            for l, scale in enumerate((4, 8, 16, 32)):
+                mask = rois[l][:, 0] == i
+                roi_l = rois[l][mask, 1:]
+                loc_l = locs[l].array[mask]
+                conf_l = confs[l].array[mask]
+
+                bbox_l = self.xp.broadcast_to(
+                    roi_l[:, None], loc_l.shape).copy()
+                bbox_l *= scale
+                bbox_l[:, :, :2] += loc_l[:, :, :2] * bbox_l[:, :, 2:]
+                bbox_l[:, :, 2:] *= self.xp.exp(loc_l[:, :, 2:])
+                bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
+                bbox_l[:, :, 2:] += bbox_l[:, :, :2]
+
+                conf_l = self.xp.exp(conf_l)
+                score_l = conf_l / self.xp.sum(conf_l, axis=1, keepdims=True)
+
+                raw_bbox.append(bbox_l)
+                raw_score.append(score_l)
+
+            raw_bbox = self.xp.vstack(raw_bbox)
+            raw_score = self.xp.vstack(raw_score)
+
+            bbox = []
+            label = []
+            score = []
+            for lb in range(raw_score.shape[1] - 1):
+                bbox_lb = raw_bbox[:, lb + 1]
+                score_lb = raw_score[:, lb + 1]
+
+                mask = score_lb >= 0.5
+                bbox_lb = bbox_lb[mask]
+                score_lb = score_lb[mask]
+
+                indices = utils.non_maximum_suppression(
+                    bbox_lb, 0.45, score_lb)
+                bbox_lb = bbox_lb[indices]
+                score_lb = score_lb[indices]
+
+                bbox.append(bbox_lb)
+                label.append(self.xp.array((lb,) * len(bbox_lb)))
+                score.append(score_lb)
+
+            bbox = self.xp.vstack(bbox).astype(np.float32)
+            label = self.xp.hstack(label).astype(np.int32)
+            score = self.xp.hstack(score).astype(np.float32)
+            bboxes.append(bbox)
+            labels.append(label)
+            scores.append(score)
+
+        return x + self._mean[:, None, None], bboxes, labels, scores
 
 
 class FPNResNet101(chainer.Chain):
@@ -115,16 +175,18 @@ class RPN(chainer.Chain):
             _, _, H, W = x.shape
             u, v, ar = np.meshgrid(
                 np.arange(H), np.arange(W), self._anchors)
-            default_roi = np.stack(
-                (u, v, ar, 1 / ar)).reshape((4, -1)).transpose()
+            default_roi = np.stack((u + 0.5, v + 0.5, 7 / ar, 7 * ar)) \
+                            .reshape((4, -1)).transpose()
             default_roi = self.xp.array(default_roi)
 
             roi = []
             for i in range(x.shape[0]):
-                # loc_i = loc.array[i]
+                loc_i = loc.array[i]
                 conf_i = conf.array[i]
 
                 roi_i = default_roi.copy()
+                roi_i[:, :2] += loc_i[:, :2] * roi_i[:, 2:]
+                roi_i[:, 2:] *= self.xp.exp(loc_i[:, 2:])
                 roi_i[:, :2] -= roi_i[:, 2:] / 2
                 roi_i[:, 2:] += roi_i[:, :2]
 
@@ -159,12 +221,21 @@ class Head(chainer.Chain):
             self.loc = L.Linear(n_class * 4)
             self.conf = L.Linear(n_class)
 
-    def __call__(self, x):
-        h = F.relu(self.fc6(x))
-        h = F.relu(self.fc7(x))
-        loc = self.loc(h)
-        conf = self.conf(h)
-        return loc, conf
+    def __call__(self, xs):
+        locs = []
+        confs = []
+        for x in xs:
+            h = F.reshape(x, (x.shape[0], -1))
+            h = F.relu(self.fc6(h))
+            h = F.relu(self.fc7(h))
+
+            loc = self.loc(h)
+            loc = F.reshape(loc, (loc.shape[0], -1, 4))
+            locs.append(loc)
+
+            conf = self.conf(h)
+            confs.append(conf)
+        return locs, confs
 
 
 def _upsample(x):
