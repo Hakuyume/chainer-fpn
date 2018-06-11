@@ -101,6 +101,15 @@ def main():
 
         model[new_name] = value
 
+        m = re.fullmatch('(.+/bn)/gamma', new_name)
+        if m:
+            print('zeros', '->', '{}/avg_mean'.format(m.group(1)))
+            model['{}/avg_mean'.format(m.group(1))] = np.zeros_like(value)
+            print('ones', '->', '{}/avg_var'.format(m.group(1)))
+            model['{}/avg_var'.format(m.group(1))] = np.ones_like(value)
+            print(0, '->', '{}/N'.format(m.group(1)))
+            model['{}/N'.format(m.group(1))] = 0
+
     with open(args.output, mode='wb') as f:
         np.savez_compressed(f, **model)
 
