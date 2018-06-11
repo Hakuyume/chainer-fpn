@@ -174,9 +174,9 @@ class RPN(chainer.Chain):
             _, _, H, W = x.shape
             u, v, ar = np.meshgrid(
                 np.arange(H), np.arange(W), self._anchors)
-            default_roi = np.stack((u + 0.5, v + 0.5, 7 / ar, 7 * ar)) \
-                            .reshape((4, -1)).transpose()
-            default_roi = self.xp.array(default_roi)
+            anchor = np.stack((u + 0.5, v + 0.5, 7 / ar, 7 * ar)) \
+                       .reshape((4, -1)).transpose()
+            anchor = self.xp.array(anchor)
 
             roi = []
             roi_index = []
@@ -184,7 +184,7 @@ class RPN(chainer.Chain):
                 loc_i = loc.array[i]
                 conf_i = conf.array[i]
 
-                roi_i = default_roi.copy()
+                roi_i = anchor.copy()
                 roi_i[:, :2] += loc_i[:, :2] * roi_i[:, 2:]
                 roi_i[:, 2:] *= self.xp.exp(loc_i[:, 2:])
                 roi_i[:, :2] -= roi_i[:, 2:] / 2
