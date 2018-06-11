@@ -1,11 +1,19 @@
+import numpy as np
+
 import chainer
 import chainer.functions as F
 import chainer.links as L
 
 import chainercv
+from chainercv import transforms
 
 
 class FasterRCNNFPNResNet101(chainer.Chain):
+
+    _mean = np.array((122.7717, 115.9465, 102.9801))
+    _min_size = 800
+    _max_size = 1333
+    _stride = 32
 
     def __init__(self, n_fg_class):
         super().__init__()
@@ -16,6 +24,25 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
     def __call__(self, x):
         pass
+
+    def predict(self, imgs):
+        resized_imgs = []
+        for img in imgs:
+            _, H, W = img.shape
+            scale = self._min_size / min(H, W)
+            if scale * max(H, W) > self._max_size:
+                scale = self._max_size / max(H, W)
+            img = transforms.resize(
+                img, (int(H * scale), int(W * scale)))
+            img -= self._mean[:, None, None]
+            resized_imgs.append(img)
+
+        size = np.array([img.shape[1:] for img in resized_imgs]).max(axis=0)
+        size = (np.ceil(size / self._stride) * self._stride).astype(int)
+        x = np.zeros((len(imgs), 3, size[0], size[1]), dtype=np.float32)
+        for i, img in enumerate(resized_imgs):
+            _, H, W = img.shape
+            x[i, :, :H, :W] = img
 
 
 class FPNResNet101(chainer.Chain):
