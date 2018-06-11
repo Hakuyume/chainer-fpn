@@ -5,10 +5,6 @@ import chainer.links as L
 import chainercv
 
 
-def _upsample(x):
-    return F.unpooling_2d(x, 2, cover_all=False)
-
-
 class FasterRCNNFPNResNet101(chainer.Chain):
 
     def __init__(self, n_fg_class):
@@ -37,7 +33,18 @@ class FPNResNet101(chainer.Chain):
         self.resnet.remove_unused()
 
     def __call__(self, x):
-        pass
+        h2, h3, h4, h5 = self.resnet(x)
+
+        h5 = self.inner5(h5)
+        h4 = _upsample(h5) + self.inner4(h4)
+        h3 = _upsample(h4) + self.inner3(h3)
+        h2 = _upsample(h3) + self.inner2(h2)
+
+        h5 = self.outer5(h5)
+        h4 = self.outer4(h4)
+        h3 = self.outer3(h3)
+        h2 = self.outer2(h2)
+        return h2, h3, h4, h5
 
 
 class RPN(chainer.Chain):
@@ -67,3 +74,7 @@ class Head(chainer.Chain):
 
     def __call__(self, x):
         pass
+
+
+def _upsample(x):
+    return F.unpooling_2d(x, 2, cover_all=False)
