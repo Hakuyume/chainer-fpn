@@ -174,6 +174,7 @@ class RPN(chainer.Chain):
             _, _, H, W = x.shape
             u, v, ar = np.meshgrid(
                 np.arange(H), np.arange(W), self._anchors)
+            ar = np.sqrt(ar)
             anchor = np.stack((u + 0.5, v + 0.5, 7 / ar, 7 * ar)) \
                        .reshape((4, -1)).transpose()
             anchor = self.xp.array(anchor)
