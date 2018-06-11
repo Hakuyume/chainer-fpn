@@ -1,6 +1,7 @@
 import numpy as np
 
 import chainer
+from chainer.backends import cuda
 import chainer.functions as F
 import chainer.links as L
 
@@ -30,14 +31,18 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
 
     def predict(self, imgs):
+        sizes = []
+        resized_sizes = []
         resized_imgs = []
         for img in imgs:
             _, H, W = img.shape
+            sizes.append((H, W))
             scale = self._min_size / min(H, W)
             if scale * max(H, W) > self._max_size:
                 scale = self._max_size / max(H, W)
-            img = transforms.resize(
-                img, (int(H * scale), int(W * scale)))
+            H, W = int(H * scale), int(W * scale)
+            resized_sizes.append((H, W))
+            img = transforms.resize(img, (H, W))
             img -= self._mean
             resized_imgs.append(img)
 
@@ -100,14 +105,17 @@ class FasterRCNNFPNResNet101(chainer.Chain):
                 label.append(self.xp.array((lb,) * len(bbox_lb)))
                 score.append(score_lb)
 
-            bbox = self.xp.vstack(bbox).astype(np.float32)
-            label = self.xp.hstack(label).astype(np.int32)
-            score = self.xp.hstack(score).astype(np.float32)
+            bbox = cuda.to_cpu(self.xp.vstack(bbox).astype(np.float32))
+            label = cuda.to_cpu(self.xp.hstack(label).astype(np.int32))
+            score = cuda.to_cpu(self.xp.hstack(score).astype(np.float32))
+
+            transforms.resize_bbox(bbox, resized_sizes[i], sizes[i])
+
             bboxes.append(bbox)
             labels.append(label)
             scores.append(score)
 
-        return x + self._mean, bboxes, labels, scores
+        return bboxes, labels, scores
 
 
 class FPNResNet101(chainer.Chain):
@@ -203,7 +211,7 @@ class RPN(chainer.Chain):
                 roi_index.append(self.xp.ones(len(roi_i)) * i)
 
             rois.append(self.xp.vstack(roi).astype(np.float32))
-            roi_indices.append(self.xp.concatenate(roi_index).astype(np.int32))
+            roi_indices.append(self.xp.hstack(roi_index).astype(np.int32))
 
         return locs, confs, rois, roi_indices
 
