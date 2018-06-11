@@ -23,7 +23,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             self.head = Head(n_fg_class + 1)
 
     def __call__(self, x):
-        pass
+        return self.extractor(x)
 
     def predict(self, imgs):
         resized_imgs = []
@@ -43,6 +43,9 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         for i, img in enumerate(resized_imgs):
             _, H, W = img.shape
             x[i, :, :H, :W] = img
+
+        with chainer.using_config('train', False), chainer.no_backprop_mode():
+            h2, h3, h4, h5 = self(x)
 
 
 class FPNResNet101(chainer.Chain):
@@ -67,10 +70,10 @@ class FPNResNet101(chainer.Chain):
         h3 = _upsample(h4) + self.inner3(h3)
         h2 = _upsample(h3) + self.inner2(h2)
 
-        h5 = self.outer5(h5)
-        h4 = self.outer4(h4)
-        h3 = self.outer3(h3)
         h2 = self.outer2(h2)
+        h3 = self.outer3(h3)
+        h4 = self.outer4(h4)
+        h5 = self.outer5(h5)
         return h2, h3, h4, h5
 
 
