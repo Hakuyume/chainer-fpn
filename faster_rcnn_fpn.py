@@ -82,7 +82,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
     def _decode(self, i, rois, roi_indices, locs, confs):
         bbox = []
         score = []
-        for l, scale in enumerate((4, 8, 16, 32)):
+        for l, scale in enumerate(self.extractor.scales):
             mask = roi_indices[l] == i
             roi_l = rois[l][mask]
             loc_l = locs[l].array[mask]
@@ -134,6 +134,8 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
 
 class FPNResNet101(chainer.Chain):
+
+    scales = (4, 8, 16, 32)
 
     def __init__(self):
         super().__init__()
