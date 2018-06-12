@@ -79,6 +79,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             _, H, W = img.shape
             x[i, :, :H, :W] = img
 
+        x = self.xp.array(x)
         return x, sizes
 
     def _decode(self, i, rois, roi_indices, locs, confs):
