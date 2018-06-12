@@ -110,22 +110,21 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         bbox = []
         label = []
         score = []
-        for lb in range(raw_score.shape[1] - 1):
-            bbox_lb = raw_bbox[:, lb + 1]
-            score_lb = raw_score[:, lb + 1]
+        for l in range(raw_score.shape[1] - 1):
+            bbox_l = raw_bbox[:, l + 1]
+            score_l = raw_score[:, l + 1]
 
-            mask = score_lb >= 0.5
-            bbox_lb = bbox_lb[mask]
-            score_lb = score_lb[mask]
+            mask = score_l >= 0.5
+            bbox_l = bbox_l[mask]
+            score_l = score_l[mask]
 
-            indices = utils.non_maximum_suppression(
-                bbox_lb, 0.45, score_lb)
-            bbox_lb = bbox_lb[indices]
-            score_lb = score_lb[indices]
+            indices = utils.non_maximum_suppression(bbox_l, 0.45, score_l)
+            bbox_l = bbox_l[indices]
+            score_l = score_l[indices]
 
-            bbox.append(bbox_lb)
-            label.append(self.xp.array((lb,) * len(bbox_lb)))
-            score.append(score_lb)
+            bbox.append(bbox_l)
+            label.append(self.xp.array((l,) * len(bbox_l)))
+            score.append(score_l)
 
         bbox = self.xp.vstack(bbox).astype(np.float32)
         label = self.xp.hstack(label).astype(np.int32)
