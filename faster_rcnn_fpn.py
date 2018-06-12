@@ -31,17 +31,41 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
 
     def predict(self, imgs):
+        sizes_orig = [img.shape[1:] for img in imgs]
+        x, sizes = self._prepare(imgs)
+
+        with chainer.using_config('train', False), chainer.no_backprop_mode():
+            _, _, rois, roi_indices, locs, confs = self(x)
+
+        bboxes = []
+        labels = []
+        scores = []
+        for i in range(x.shape[0]):
+            bbox, label, score = self._decode(
+                i, rois, roi_indices, locs, confs)
+
+            bbox = cuda.to_cpu(bbox)
+            label = cuda.to_cpu(label)
+            score = cuda.to_cpu(score)
+
+            bbox = transforms.resize_bbox(bbox, sizes[i], sizes_orig[i])
+
+            bboxes.append(bbox)
+            labels.append(label)
+            scores.append(score)
+
+        return bboxes, labels, scores
+
+    def _prepare(self, imgs):
         sizes = []
-        resized_sizes = []
         resized_imgs = []
         for img in imgs:
             _, H, W = img.shape
-            sizes.append((H, W))
             scale = self._min_size / min(H, W)
             if scale * max(H, W) > self._max_size:
                 scale = self._max_size / max(H, W)
             H, W = int(H * scale), int(W * scale)
-            resized_sizes.append((H, W))
+            sizes.append((H, W))
             img = transforms.resize(img, (H, W))
             img -= self._mean
             resized_imgs.append(img)
@@ -53,69 +77,60 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             _, H, W = img.shape
             x[i, :, :H, :W] = img
 
-        with chainer.using_config('train', False), chainer.no_backprop_mode():
-            _, _, rois, roi_indices, locs, confs = self(x)
+        return x, sizes
 
-        bboxes = []
-        labels = []
-        scores = []
-        for i in range(x.shape[0]):
-            raw_bbox = []
-            raw_score = []
-            for l, scale in enumerate((4, 8, 16, 32)):
-                mask = roi_indices[l] == i
-                roi_l = rois[l][mask]
-                loc_l = locs[l].array[mask]
-                conf_l = confs[l].array[mask]
+    def _decode(self, i, rois, roi_indices, locs, confs):
+        bbox = []
+        score = []
+        for l, scale in enumerate((4, 8, 16, 32)):
+            mask = roi_indices[l] == i
+            roi_l = rois[l][mask]
+            loc_l = locs[l].array[mask]
+            conf_l = confs[l].array[mask]
 
-                bbox_l = self.xp.broadcast_to(
-                    roi_l[:, None], loc_l.shape).copy()
-                bbox_l *= scale
-                bbox_l[:, :, :2] += loc_l[:, :, :2] * bbox_l[:, :, 2:]
-                bbox_l[:, :, 2:] *= self.xp.exp(loc_l[:, :, 2:])
-                bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
-                bbox_l[:, :, 2:] += bbox_l[:, :, :2]
+            bbox_l = self.xp.broadcast_to(
+                roi_l[:, None], loc_l.shape).copy()
+            bbox_l *= scale
+            bbox_l[:, :, :2] += loc_l[:, :, :2] * bbox_l[:, :, 2:]
+            bbox_l[:, :, 2:] *= self.xp.exp(loc_l[:, :, 2:])
+            bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
+            bbox_l[:, :, 2:] += bbox_l[:, :, :2]
 
-                conf_l = self.xp.exp(conf_l)
-                score_l = conf_l / self.xp.sum(conf_l, axis=1, keepdims=True)
+            conf_l = self.xp.exp(conf_l)
+            score_l = conf_l / self.xp.sum(conf_l, axis=1, keepdims=True)
 
-                raw_bbox.append(bbox_l)
-                raw_score.append(score_l)
+            bbox.append(bbox_l)
+            score.append(score_l)
 
-            raw_bbox = self.xp.vstack(raw_bbox)
-            raw_score = self.xp.vstack(raw_score)
+        bbox = self.xp.vstack(bbox)
+        score = self.xp.vstack(score)
+        return self._suppress(bbox, score)
 
-            bbox = []
-            label = []
-            score = []
-            for lb in range(raw_score.shape[1] - 1):
-                bbox_lb = raw_bbox[:, lb + 1]
-                score_lb = raw_score[:, lb + 1]
+    def _suppress(self, raw_bbox, raw_score):
+        bbox = []
+        label = []
+        score = []
+        for lb in range(raw_score.shape[1] - 1):
+            bbox_lb = raw_bbox[:, lb + 1]
+            score_lb = raw_score[:, lb + 1]
 
-                mask = score_lb >= 0.5
-                bbox_lb = bbox_lb[mask]
-                score_lb = score_lb[mask]
+            mask = score_lb >= 0.5
+            bbox_lb = bbox_lb[mask]
+            score_lb = score_lb[mask]
 
-                indices = utils.non_maximum_suppression(
-                    bbox_lb, 0.45, score_lb)
-                bbox_lb = bbox_lb[indices]
-                score_lb = score_lb[indices]
+            indices = utils.non_maximum_suppression(
+                bbox_lb, 0.45, score_lb)
+            bbox_lb = bbox_lb[indices]
+            score_lb = score_lb[indices]
 
-                bbox.append(bbox_lb)
-                label.append(self.xp.array((lb,) * len(bbox_lb)))
-                score.append(score_lb)
+            bbox.append(bbox_lb)
+            label.append(self.xp.array((lb,) * len(bbox_lb)))
+            score.append(score_lb)
 
-            bbox = cuda.to_cpu(self.xp.vstack(bbox).astype(np.float32))
-            label = cuda.to_cpu(self.xp.hstack(label).astype(np.int32))
-            score = cuda.to_cpu(self.xp.hstack(score).astype(np.float32))
-
-            transforms.resize_bbox(bbox, resized_sizes[i], sizes[i])
-
-            bboxes.append(bbox)
-            labels.append(label)
-            scores.append(score)
-
-        return bboxes, labels, scores
+        bbox = self.xp.vstack(bbox).astype(np.float32)
+        label = self.xp.hstack(label).astype(np.int32)
+        score = self.xp.hstack(score).astype(np.float32)
+        return bbox, label, score
 
 
 class FPNResNet101(chainer.Chain):
