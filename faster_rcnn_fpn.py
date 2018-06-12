@@ -16,6 +16,8 @@ class FasterRCNNFPNResNet101(chainer.Chain):
     _min_size = 800
     _max_size = 1333
     _stride = 32
+    _score_thresh = 0.5
+    _nms_thresh = 0.5
 
     def __init__(self, n_fg_class):
         super().__init__()
@@ -114,11 +116,12 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             bbox_l = raw_bbox[:, l + 1]
             score_l = raw_score[:, l + 1]
 
-            mask = score_l >= 0.5
+            mask = score_l >= self._score_thresh
             bbox_l = bbox_l[mask]
             score_l = score_l[mask]
 
-            indices = utils.non_maximum_suppression(bbox_l, 0.45, score_l)
+            indices = utils.non_maximum_suppression(
+                bbox_l, self._nms_thresh, score_l)
             bbox_l = bbox_l[indices]
             score_l = score_l[indices]
 
