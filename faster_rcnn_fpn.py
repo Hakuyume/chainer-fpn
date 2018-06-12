@@ -138,7 +138,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
 class FPNResNet101(chainer.Chain):
 
-    scales = (4, 8, 16, 32)
+    scales = (4, 8, 16, 32, 64)
 
     def __init__(self):
         super().__init__()
@@ -164,7 +164,8 @@ class FPNResNet101(chainer.Chain):
         h3 = self.outer3(h3)
         h4 = self.outer4(h4)
         h5 = self.outer5(h5)
-        return h2, h3, h4, h5
+        h6 = F.max_pooling_2d(h5, 2, stride=2)
+        return h2, h3, h4, h5, h6
 
 
 class RPN(chainer.Chain):
