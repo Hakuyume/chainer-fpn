@@ -28,7 +28,8 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
     def __call__(self, x):
         hs = self.extractor(x)
-        rpn_locs, rpn_confs, rois, roi_indices = self.rpn(hs)
+        rpn_locs, rpn_confs, rois, roi_indices = self.rpn(
+            hs, self.extractor.scales)
         locs, confs = self.head(hs, rois, roi_indices)
         return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
 
@@ -138,7 +139,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
 class FPNResNet101(chainer.Chain):
 
-    scales = (4, 8, 16, 32, 64)
+    scales = (1 / 4, 1 / 8, 1 / 16, 1 / 32, 1 / 64)
 
     def __init__(self):
         super().__init__()
@@ -170,7 +171,8 @@ class FPNResNet101(chainer.Chain):
 
 class RPN(chainer.Chain):
 
-    _anchors = (0.5, 1, 2)
+    _anchor_size = 32
+    _anchor_ratios = (0.5, 1, 2)
     _nms_thresh = 0.7
     _nms_limit_pre = 1000
     _nms_limit_post = 1000
@@ -179,10 +181,10 @@ class RPN(chainer.Chain):
         super().__init__()
         with self.init_scope():
             self.conv = L.Convolution2D(256, 3, pad=1)
-            self.loc = L.Convolution2D(len(self._anchors) * 4, 1)
-            self.conf = L.Convolution2D(len(self._anchors), 1)
+            self.loc = L.Convolution2D(len(self._anchor_ratios) * 4, 1)
+            self.conf = L.Convolution2D(len(self._anchor_ratios), 1)
 
-    def __call__(self, xs):
+    def __call__(self, xs, scales):
         locs = []
         confs = []
         rois = []
@@ -193,7 +195,7 @@ class RPN(chainer.Chain):
             loc = self.loc(h)
             loc = F.transpose(loc, (0, 2, 3, 1))
             loc = F.reshape(loc, (loc.shape[0], -1, 4))
-            locs.append(loc)
+            locs.append(loc[:, :, [1, 0, 3, 2]])
 
             conf = self.conf(h)
             conf = F.transpose(conf, (0, 2, 3, 1))
@@ -202,10 +204,12 @@ class RPN(chainer.Chain):
 
             _, _, H, W = x.shape
             u, v, ar = np.meshgrid(
-                np.arange(H), np.arange(W), self._anchors)
-            ar = np.sqrt(ar)
-            anchor = np.stack((u + 0.5, v + 0.5, 7 / ar, 7 * ar)) \
-                       .reshape((4, -1)).transpose()
+                np.arange(H), np.arange(W), self._anchor_ratios)
+            h = np.round(1 * np.sqrt(ar) / scales[l])
+            w = np.round(h / ar)
+            anchor = np.stack((u, v, h, w)).reshape((4, -1)).transpose()
+            anchor[:, :2] = (anchor[:, :2] + 0.5) / scales[l] - 1
+            anchor[:, 2:] *= (self._anchor_size << l) * scales[l]
             anchor = self.xp.array(anchor)
 
             roi = []
