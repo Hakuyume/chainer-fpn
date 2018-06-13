@@ -28,7 +28,7 @@ def main():
     model.use_preset('evaluate')
 
     dataset = COCOBboxDataset(
-        split='minval',
+        split='minival',
         use_crowded=True,
         return_area=True,
         return_crowded=True)
