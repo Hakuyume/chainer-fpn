@@ -173,6 +173,7 @@ class RPN(chainer.Chain):
 
     _anchor_size = 32
     _anchor_ratios = (0.5, 1, 2)
+    _clip = np.log(1000 / 16)
     _nms_thresh = 0.7
     _nms_limit_pre = 1000
     _nms_limit_post = 1000
@@ -221,7 +222,8 @@ class RPN(chainer.Chain):
 
                 roi_i = anchor.copy()
                 roi_i[:, :2] += loc_i[:, :2] * roi_i[:, 2:]
-                roi_i[:, 2:] *= self.xp.exp(loc_i[:, 2:])
+                roi_i[:, 2:] *= self.xp.exp(
+                    self.xp.minimum(loc_i[:, 2:], self._clip))
                 roi_i[:, :2] -= roi_i[:, 2:] / 2
                 roi_i[:, 2:] += roi_i[:, :2] - 1
 
