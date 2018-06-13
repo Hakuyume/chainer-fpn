@@ -23,13 +23,14 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         super().__init__()
         with self.init_scope():
             self.extractor = FPNResNet101()
-            self.rpn = RPN()
+            self.rpn = RPN(self.extractor.scales)
             self.head = Head(n_fg_class + 1)
 
-    def __call__(self, x):
+    def __call__(self, x, sizes):
         hs = self.extractor(x)
-        rpn_locs, rpn_confs, rois, roi_indices = self.rpn(
-            hs, self.extractor.scales)
+        rpn_locs, rpn_confs = self.rpn(hs)
+        rois, roi_indices = self.rpn.decode(
+            rpn_locs, rpn_confs, [h.shape[2:] for h in hs], sizes)
         locs, confs = self.head(hs, rois, roi_indices)
         return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
 
@@ -38,7 +39,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         x, sizes = self._prepare(imgs)
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            _, _, rois, roi_indices, locs, confs = self(x)
+            _, _, rois, roi_indices, locs, confs = self(x, sizes)
 
         bboxes = []
         labels = []
@@ -178,19 +179,19 @@ class RPN(chainer.Chain):
     _nms_limit_pre = 1000
     _nms_limit_post = 1000
 
-    def __init__(self):
+    def __init__(self, scales):
         super().__init__()
         with self.init_scope():
             self.conv = L.Convolution2D(256, 3, pad=1)
             self.loc = L.Convolution2D(len(self._anchor_ratios) * 4, 1)
             self.conf = L.Convolution2D(len(self._anchor_ratios), 1)
 
-    def __call__(self, xs, scales):
+        self._scales = scales
+
+    def __call__(self, xs):
         locs = []
         confs = []
-        rois = []
-        roi_indices = []
-        for l, x in enumerate(xs):
+        for x in xs:
             h = F.relu(self.conv(x))
 
             loc = self.loc(h)
@@ -204,44 +205,64 @@ class RPN(chainer.Chain):
             conf = F.reshape(conf, (conf.shape[0], -1))
             confs.append(conf)
 
-            _, _, H, W = x.shape
+        return locs, confs
+
+    def decode(self, locs, confs, shapes, sizes):
+        anchors = []
+        for l, (H, W) in enumerate(shapes):
             u, v, ar = np.meshgrid(
                 np.arange(H), np.arange(W), self._anchor_ratios)
-            w = np.round(1 / np.sqrt(ar) / scales[l])
+            w = np.round(1 / np.sqrt(ar) / self._scales[l])
             h = np.round(w * ar)
             anchor = np.stack((u, v, h, w)).reshape((4, -1)).transpose()
-            anchor[:, :2] = (anchor[:, :2] + 0.5) / scales[l]
-            anchor[:, 2:] *= (self._anchor_size << l) * scales[l]
-            anchor = self.xp.array(anchor)
+            anchor[:, :2] = (anchor[:, :2] + 0.5) / self._scales[l]
+            anchor[:, 2:] *= (self._anchor_size << l) * self._scales[l]
+            anchors.append(self.xp.array(anchor))
 
+        rois = [[] for _ in shapes]
+        roi_indices = [[] for _ in shapes]
+        for i in range(len(sizes)):
             roi = []
-            roi_index = []
-            for i in range(x.shape[0]):
-                loc_i = loc.array[i]
-                conf_i = conf.array[i]
+            conf = []
+            level = []
+            for l in range(len(shapes)):
+                loc_l = locs[l].array[i]
+                conf_l = confs[l].array[i]
 
-                roi_i = anchor.copy()
-                roi_i[:, :2] += loc_i[:, :2] * roi_i[:, 2:]
-                roi_i[:, 2:] *= self.xp.exp(
-                    self.xp.minimum(loc_i[:, 2:], self._clip))
-                roi_i[:, :2] -= roi_i[:, 2:] / 2
-                roi_i[:, 2:] += roi_i[:, :2] - 1
+                roi_l = anchors[l].copy()
+                roi_l[:, :2] += loc_l[:, :2] * roi_l[:, 2:]
+                roi_l[:, 2:] *= self.xp.exp(
+                    self.xp.minimum(loc_l[:, 2:], self._clip))
+                roi_l[:, :2] -= roi_l[:, 2:] / 2
+                roi_l[:, 2:] += roi_l[:, :2] - 1
 
-                order = self.xp.argsort(-conf_i)[:self._nms_limit_pre]
-                roi_i = roi_i[order]
-                conf_i = conf_i[order]
+                roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
+                roi_l[:, 2:] = self.xp.minimum(roi_l[:, 2:], sizes[i])
 
-                indices = utils.non_maximum_suppression(
-                    roi_i, self._nms_thresh, limit=self._nms_limit_post)
-                roi_i = roi_i[indices]
+                order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
+                roi.append(roi_l[order])
+                conf.append(conf_l[order])
+                level.append(self.xp.array((l,) * len(order)))
 
-                roi.append(roi_i)
-                roi_index.append(self.xp.ones(len(roi_i)) * i)
+            roi = self.xp.vstack(roi).astype(np.float32)
+            conf = self.xp.hstack(conf).astype(np.float32)
+            level = self.xp.hstack(level).astype(np.int32)
 
-            rois.append(self.xp.vstack(roi).astype(np.float32))
-            roi_indices.append(self.xp.hstack(roi_index).astype(np.int32))
+            indices = utils.non_maximum_suppression(
+                roi, self._nms_thresh, score=conf, limit=self._nms_limit_post)
+            roi = roi[indices]
+            level = level[indices]
 
-        return locs, confs, rois, roi_indices
+            for l in range(len(shapes)):
+                roi_l = roi[level == l]
+                rois[l].append(roi_l)
+                roi_indices[l].append(self.xp.array((i,) * len(roi_l)))
+
+        for l in range(len(shapes)):
+            rois[l] = self.xp.vstack(rois[l]).astype(np.float32)
+            roi_indices[l] = self.xp.hstack(roi_indices[l]).astype(np.int32)
+
+        return rois, roi_indices
 
 
 class Head(chainer.Chain):
