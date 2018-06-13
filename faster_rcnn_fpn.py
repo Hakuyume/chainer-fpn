@@ -20,8 +20,6 @@ class FasterRCNNFPNResNet101(chainer.Chain):
     _min_size = 800
     _max_size = 1333
     _stride = 32
-    _score_thresh = 0.5
-    _nms_thresh = 0.5
 
     def __init__(self, n_fg_class):
         super().__init__()
@@ -30,6 +28,8 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             self.rpn = RPN(self.extractor.scales)
             self.head = Head(n_fg_class + 1, self.extractor.scales)
 
+        self.use_preset('visualize')
+
     def __call__(self, x, sizes):
         hs = self.extractor(x)
         rpn_locs, rpn_confs = self.rpn(hs)
@@ -37,6 +37,16 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             rpn_locs, rpn_confs, [h.shape[2:] for h in hs], sizes)
         locs, confs = self.head(hs, rois, roi_indices)
         return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
+
+    def use_preset(self, preset):
+        if preset == 'visualize':
+            self.nms_thresh = 0.5
+            self.score_thresh = 0.5
+        elif preset == 'evaluate':
+            self.nms_thresh = 0.5
+            self.score_thresh = 0.001
+        else:
+            raise ValueError('preset must be visualize or evaluate')
 
     def predict(self, imgs):
         sizes_orig = [img.shape[1:] for img in imgs]
@@ -125,12 +135,12 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             bbox_l = raw_bbox[:, l + 1]
             score_l = raw_score[:, l + 1]
 
-            mask = score_l >= self._score_thresh
+            mask = score_l >= self.score_thresh
             bbox_l = bbox_l[mask]
             score_l = score_l[mask]
 
             indices = utils.non_maximum_suppression(
-                bbox_l, self._nms_thresh, score_l)
+                bbox_l, self.nms_thresh, score_l)
             bbox_l = bbox_l[indices]
             score_l = score_l[indices]
 
