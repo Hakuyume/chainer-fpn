@@ -96,6 +96,10 @@ def main():
         if new_name == 'extractor/resnet/conv1/conv/W':
             value = value[:, ::-1]
             print(name, '->', new_name, '(BGR -> RGB)')
+        elif re.fullmatch(r'.+/loc/[Wb]', new_name):
+            value = value.reshape((-1, 4) + value.shape[1:])[:, [1, 0, 3, 2]] \
+                .reshape(value.shape)
+            print(name, '->', new_name, '(xy -> yx)')
         else:
             print(name, '->', new_name)
 
