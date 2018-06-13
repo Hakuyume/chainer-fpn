@@ -252,7 +252,8 @@ class RPN(chainer.Chain):
                 roi_l[:, 2:] += roi_l[:, :2] - 1
 
                 roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
-                roi_l[:, 2:] = self.xp.minimum(roi_l[:, 2:], sizes[i])
+                roi_l[:, 2:] = self.xp.minimum(
+                    roi_l[:, 2:], self.xp.array(sizes[i]))
 
                 mask = (roi_l[:, :2] < roi_l[:, 2:]).all(axis=1)
                 roi_l = roi_l[mask]
