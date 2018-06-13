@@ -9,6 +9,8 @@ import chainercv
 from chainercv import transforms
 from chainercv import utils
 
+_clip = np.log(1000 / 16)
+
 
 class FasterRCNNFPNResNet101(chainer.Chain):
 
@@ -24,7 +26,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         with self.init_scope():
             self.extractor = FPNResNet101()
             self.rpn = RPN(self.extractor.scales)
-            self.head = Head(n_fg_class + 1)
+            self.head = Head(n_fg_class + 1, self.extractor.scales)
 
     def __call__(self, x, sizes):
         hs = self.extractor(x)
@@ -95,11 +97,13 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
             bbox_l = self.xp.broadcast_to(
                 roi_l[:, None], loc_l.shape).copy()
-            bbox_l *= scale
+            bbox_l[:, :, 2:] -= bbox_l[:, :, :2] + 1
+            bbox_l[:, :, :2] += bbox_l[:, :, 2:] / 2
             bbox_l[:, :, :2] += loc_l[:, :, :2] * bbox_l[:, :, 2:]
-            bbox_l[:, :, 2:] *= self.xp.exp(loc_l[:, :, 2:])
+            bbox_l[:, :, 2:] *= self.xp.exp(
+                self.xp.minimum(loc_l[:, :, 2:], _clip))
             bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
-            bbox_l[:, :, 2:] += bbox_l[:, :, :2]
+            bbox_l[:, :, 2:] += bbox_l[:, :, :2] - 1
 
             conf_l = self.xp.exp(conf_l)
             score_l = conf_l / self.xp.sum(conf_l, axis=1, keepdims=True)
@@ -174,7 +178,6 @@ class RPN(chainer.Chain):
 
     _anchor_size = 32
     _anchor_ratios = (0.5, 1, 2)
-    _clip = np.log(1000 / 16)
     _nms_thresh = 0.7
     _nms_limit_pre = 1000
     _nms_limit_post = 1000
@@ -219,27 +222,27 @@ class RPN(chainer.Chain):
             anchor[:, 2:] *= (self._anchor_size << l) * self._scales[l]
             anchors.append(self.xp.array(anchor))
 
-        rois = [[] for _ in shapes]
-        roi_indices = [[] for _ in shapes]
+        rois = [[] for _ in self._scales]
+        roi_indices = [[] for _ in self._scales]
         for i in range(len(sizes)):
             roi = []
             conf = []
             level = []
-            for l in range(len(shapes)):
+            for l in range(len(self._scales)):
                 loc_l = locs[l].array[i]
                 conf_l = confs[l].array[i]
 
                 roi_l = anchors[l].copy()
                 roi_l[:, :2] += loc_l[:, :2] * roi_l[:, 2:]
                 roi_l[:, 2:] *= self.xp.exp(
-                    self.xp.minimum(loc_l[:, 2:], self._clip))
+                    self.xp.minimum(loc_l[:, 2:], _clip))
                 roi_l[:, :2] -= roi_l[:, 2:] / 2
                 roi_l[:, 2:] += roi_l[:, :2] - 1
 
                 roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
                 roi_l[:, 2:] = self.xp.minimum(roi_l[:, 2:], sizes[i])
 
-                mask = (roi_l[:, :2] + 1 < roi_l[:, 2:]).all(axis=1)
+                mask = (roi_l[:, :2] < roi_l[:, 2:]).all(axis=1)
                 roi_l = roi_l[mask]
                 conf_l = conf_l[mask]
 
@@ -257,12 +260,12 @@ class RPN(chainer.Chain):
             roi = roi[indices]
             level = level[indices]
 
-            for l in range(len(shapes)):
+            for l in range(len(self._scales)):
                 roi_l = roi[level == l]
                 rois[l].append(roi_l)
                 roi_indices[l].append(self.xp.array((i,) * len(roi_l)))
 
-        for l in range(len(shapes)):
+        for l in range(len(self._scales)):
             rois[l] = self.xp.vstack(rois[l]).astype(np.float32)
             roi_indices[l] = self.xp.hstack(roi_indices[l]).astype(np.int32)
 
@@ -272,8 +275,9 @@ class RPN(chainer.Chain):
 class Head(chainer.Chain):
 
     _roi_size = 7
+    _std = (0.1, 0.2)
 
-    def __init__(self, n_class):
+    def __init__(self, n_class, scales):
         super().__init__()
         with self.init_scope():
             self.fc6 = L.Linear(1024)
@@ -281,13 +285,16 @@ class Head(chainer.Chain):
             self.loc = L.Linear(n_class * 4)
             self.conf = L.Linear(n_class)
 
+        self._scales = scales
+
     def __call__(self, xs, rois, roi_indices):
         locs = []
         confs = []
         for l, x in enumerate(xs):
             roi = self.xp.hstack((roi_indices[l][:, None], rois[l])) \
                          .astype(np.float32)
-            h = _roi_pooling_2d(x, roi, self._roi_size, self._roi_size, 1)
+            h = _roi_pooling_2d(
+                x, roi, self._roi_size, self._roi_size, self._scales[l])
 
             h = F.reshape(h, (h.shape[0], -1))
             h = F.relu(self.fc6(h))
@@ -295,7 +302,10 @@ class Head(chainer.Chain):
 
             loc = self.loc(h)
             loc = F.reshape(loc, (loc.shape[0], -1, 4))
-            locs.append(loc)
+            loc *= self.xp.array(
+                (self._std[0], self._std[0], self._std[1], self._std[1]))
+            # xy -> yx
+            locs.append(loc[:, :, [1, 0, 3, 2]])
 
             conf = self.conf(h)
             confs.append(conf)
