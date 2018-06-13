@@ -239,6 +239,10 @@ class RPN(chainer.Chain):
                 roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
                 roi_l[:, 2:] = self.xp.minimum(roi_l[:, 2:], sizes[i])
 
+                mask = (roi_l[:, :2] + 1 < roi_l[:, 2:]).all(axis=1)
+                roi_l = roi_l[mask]
+                conf_l = conf_l[mask]
+
                 order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
                 roi.append(roi_l[order])
                 conf.append(conf_l[order])
