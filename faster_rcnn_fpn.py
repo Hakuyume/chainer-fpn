@@ -299,12 +299,20 @@ class Head(chainer.Chain):
             self.loc = L.Linear(n_class * 4)
             self.conf = L.Linear(n_class)
 
+        self._n_class = n_class
         self._scales = scales
 
     def __call__(self, xs, rois, roi_indices):
         locs = []
         confs = []
         for l, x in enumerate(xs):
+            if len(rois[l]) == 0:
+                locs.append(chainer.Variable(
+                    self.xp.empty((0, self._n_class, 4), dtype=np.float32)))
+                confs.append(chainer.Variable(
+                    self.xp.empty((0, self._n_class), dtype=np.float32)))
+                continue
+
             roi_iltrb = self.xp.hstack(
                 (roi_indices[l][:, None], rois[l][:, [1, 0, 3, 2]])) \
                 .astype(np.float32)
