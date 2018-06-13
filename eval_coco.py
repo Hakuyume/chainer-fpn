@@ -47,7 +47,9 @@ def main():
         pred_bboxes, pred_labels, pred_scores,
         gt_bboxes, gt_labels, gt_area, gt_crowded)
 
-    print(result)
+    for area in ('all', 'large', 'medium', 'small'):
+        print('map ({}):'.format(area),
+              result['map/iou=0.50:0.95/area={}/maxDets=100'.format(area)])
 
 
 if __name__ == '__main__':
