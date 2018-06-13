@@ -9,6 +9,8 @@ import chainercv
 from chainercv import transforms
 from chainercv import utils
 
+from roi_align_2d import roi_align_2d
+
 _clip = np.log(1000 / 16)
 
 
@@ -275,6 +277,7 @@ class RPN(chainer.Chain):
 class Head(chainer.Chain):
 
     _roi_size = 7
+    _roi_sample_ratio = 2
     _std = (0.1, 0.2)
 
     def __init__(self, n_class, scales):
@@ -291,10 +294,13 @@ class Head(chainer.Chain):
         locs = []
         confs = []
         for l, x in enumerate(xs):
-            roi = self.xp.hstack((roi_indices[l][:, None], rois[l])) \
-                         .astype(np.float32)
-            h = _roi_pooling_2d(
-                x, roi, self._roi_size, self._roi_size, self._scales[l])
+            roi_iltrb = self.xp.hstack(
+                (roi_indices[l][:, None], rois[l][:, [1, 0, 3, 2]])) \
+                .astype(np.float32)
+            h = roi_align_2d(
+                x, roi_iltrb,
+                self._roi_size, self._roi_size,
+                self._scales[l], self._roi_sample_ratio)
 
             h = F.reshape(h, (h.shape[0], -1))
             h = F.relu(self.fc6(h))
@@ -314,8 +320,3 @@ class Head(chainer.Chain):
 
 def _upsample(x):
     return F.unpooling_2d(x, 2, cover_all=False)
-
-
-def _roi_pooling_2d(x, rois, outh, outw, spatial_scale):
-    return F.roi_pooling_2d(
-        x, rois[:, [0, 2, 1, 4, 3]], outh, outw, spatial_scale)
