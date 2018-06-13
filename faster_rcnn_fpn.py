@@ -206,10 +206,10 @@ class RPN(chainer.Chain):
             _, _, H, W = x.shape
             u, v, ar = np.meshgrid(
                 np.arange(H), np.arange(W), self._anchor_ratios)
-            h = np.round(1 * np.sqrt(ar) / scales[l])
-            w = np.round(h / ar)
+            w = np.round(1 / np.sqrt(ar) / scales[l])
+            h = np.round(w * ar)
             anchor = np.stack((u, v, h, w)).reshape((4, -1)).transpose()
-            anchor[:, :2] = (anchor[:, :2] + 0.5) / scales[l] - 1
+            anchor[:, :2] = (anchor[:, :2] + 0.5) / scales[l]
             anchor[:, 2:] *= (self._anchor_size << l) * scales[l]
             anchor = self.xp.array(anchor)
 
@@ -223,7 +223,7 @@ class RPN(chainer.Chain):
                 roi_i[:, :2] += loc_i[:, :2] * roi_i[:, 2:]
                 roi_i[:, 2:] *= self.xp.exp(loc_i[:, 2:])
                 roi_i[:, :2] -= roi_i[:, 2:] / 2
-                roi_i[:, 2:] += roi_i[:, :2]
+                roi_i[:, 2:] += roi_i[:, :2] - 1
 
                 order = self.xp.argsort(-conf_i)[:self._nms_limit_pre]
                 roi_i = roi_i[order]
