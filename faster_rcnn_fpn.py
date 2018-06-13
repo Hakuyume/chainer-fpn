@@ -212,8 +212,7 @@ class RPN(chainer.Chain):
             loc = self.loc(h)
             loc = F.transpose(loc, (0, 2, 3, 1))
             loc = F.reshape(loc, (loc.shape[0], -1, 4))
-            # xy -> yx
-            locs.append(loc[:, :, [1, 0, 3, 2]])
+            locs.append(loc)
 
             conf = self.conf(h)
             conf = F.transpose(conf, (0, 2, 3, 1))
@@ -329,8 +328,7 @@ class Head(chainer.Chain):
             loc = F.reshape(loc, (loc.shape[0], -1, 4))
             loc *= self.xp.array(
                 (self._std[0], self._std[0], self._std[1], self._std[1]))
-            # xy -> yx
-            locs.append(loc[:, :, [1, 0, 3, 2]])
+            locs.append(loc)
 
             conf = self.conf(h)
             confs.append(conf)
