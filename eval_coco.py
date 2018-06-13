@@ -14,8 +14,8 @@ from faster_rcnn_fpn import FasterRCNNFPNResNet101
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model')
     parser.add_argument('--gpu', type=int, default=-1)
+    parser.add_argument('model')
     args = parser.parse_args()
 
     model = FasterRCNNFPNResNet101(n_fg_class=len(coco_bbox_label_names))
