@@ -162,14 +162,17 @@ class FPNResNet101(chainer.Chain):
         super().__init__()
         with self.init_scope():
             self.resnet = chainercv.links.ResNet101(n_class=1, arch='fb')
-        for i in range(2, 5 + 1):
-            self.add_link('inner{}'.format(i), L.Convolution2D(256, 1))
-            self.add_link('outer{}'.format(i), L.Convolution2D(256, 3, pad=1))
-
         self.resnet.pick = ('res2', 'res3', 'res4', 'res5')
         self.resnet.remove_unused()
         self.resnet.pool1 = lambda x: F.max_pooling_2d(
             x, 3, stride=2, pad=1, cover_all=False)
+        for link in self.resnet.links():
+            if isinstance(link, L.BatchNormalization):
+                link.eps = 0
+
+        for i in range(2, 5 + 1):
+            self.add_link('inner{}'.format(i), L.Convolution2D(256, 1))
+            self.add_link('outer{}'.format(i), L.Convolution2D(256, 3, pad=1))
 
     def __call__(self, x):
         h2, h3, h4, h5 = self.resnet(x)
