@@ -167,8 +167,11 @@ class FPNResNet101(chainer.Chain):
         self.resnet.pool1 = lambda x: F.max_pooling_2d(
             x, 3, stride=2, pad=1, cover_all=False)
         for link in self.resnet.links():
-            if isinstance(link, L.BatchNormalization):
-                link.eps = 0
+            if hasattr(link, 'bn'):
+                size = len(link.bn.avg_mean)
+                del link.bn
+                with link.init_scope():
+                    link.bn = AffineChannel(size)
 
         for i in range(2, 5 + 1):
             self.add_link('inner{}'.format(i), L.Convolution2D(256, 1))
@@ -337,6 +340,19 @@ class Head(chainer.Chain):
             conf = self.conf(h)
             confs.append(conf)
         return locs, confs
+
+
+class AffineChannel(chainer.Link):
+
+    def __init__(self, size):
+        super().__init__()
+        self.gamma = np.empty(size, dtype=np.float32)
+        self.beta = np.empty(size, dtype=np.float32)
+        self.register_persistent('gamma')
+        self.register_persistent('beta')
+
+    def __call__(self, x):
+        return x * self.gamma[:, None, None] + self.beta[:, None, None]
 
 
 def _upsample(x):
