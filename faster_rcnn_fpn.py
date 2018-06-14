@@ -168,6 +168,8 @@ class FPNResNet101(chainer.Chain):
 
         self.resnet.pick = ('res2', 'res3', 'res4', 'res5')
         self.resnet.remove_unused()
+        self.resnet.pool1 = lambda x: F.max_pooling_2d(
+            x, 3, stride=2, pad=1, cover_all=False)
 
     def __call__(self, x):
         h2, h3, h4, h5 = self.resnet(x)
