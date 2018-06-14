@@ -183,7 +183,7 @@ class FPNResNet101(chainer.Chain):
         h3 = self.outer3(h3)
         h4 = self.outer4(h4)
         h5 = self.outer5(h5)
-        h6 = F.max_pooling_2d(h5, 2, stride=2)
+        h6 = F.max_pooling_2d(h5, 1, stride=2, cover_all=False)
         return h2, h3, h4, h5, h6
 
 
