@@ -26,7 +26,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         with self.init_scope():
             self.extractor = FPNResNet101()
             self.rpn = RPN(self.extractor.scales)
-            self.head = Head(n_fg_class + 1, self.extractor.scales)
+            self.head = Head(n_fg_class + 1, self.extractor.scales[:-1])
 
         self.use_preset('visualize')
 
@@ -35,7 +35,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         rpn_locs, rpn_confs = self.rpn(hs)
         rois, roi_indices = self.rpn.decode(
             rpn_locs, rpn_confs, [h.shape[2:] for h in hs], sizes)
-        locs, confs = self.head(hs, rois, roi_indices)
+        locs, confs = self.head(hs[:-1], rois, roi_indices)
         return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
 
     def use_preset(self, preset):
@@ -101,7 +101,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
     def _decode(self, i, rois, roi_indices, locs, confs):
         bbox = []
         score = []
-        for l, scale in enumerate(self.extractor.scales):
+        for l, scale in enumerate(self.extractor.scales[:-1]):
             mask = roi_indices[l] == i
             roi_l = rois[l][mask]
             loc_l = locs[l].array[mask]
@@ -200,6 +200,7 @@ class RPN(chainer.Chain):
     _nms_thresh = 0.7
     _nms_limit_pre = 1000
     _nms_limit_post = 1000
+    _canonical_scale = 224
 
     def __init__(self, scales):
         super().__init__()
@@ -240,12 +241,11 @@ class RPN(chainer.Chain):
             anchor[:, 2:] *= (self._anchor_size << l) * self._scales[l]
             anchors.append(self.xp.array(anchor))
 
-        rois = [[] for _ in self._scales]
-        roi_indices = [[] for _ in self._scales]
+        rois = [[] for _ in range(len(self._scales) - 1)]
+        roi_indices = [[] for _ in range(len(self._scales) - 1)]
         for i in range(len(sizes)):
             roi = []
             conf = []
-            level = []
             for l in range(len(self._scales)):
                 loc_l = locs[l].array[i]
                 conf_l = confs[l].array[i]
@@ -268,23 +268,28 @@ class RPN(chainer.Chain):
                 order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
                 roi.append(roi_l[order])
                 conf.append(conf_l[order])
-                level.append(self.xp.array((l,) * len(order)))
 
             roi = self.xp.vstack(roi).astype(np.float32)
             conf = self.xp.hstack(conf).astype(np.float32)
-            level = self.xp.hstack(level).astype(np.int32)
 
             indices = utils.non_maximum_suppression(
                 roi, self._nms_thresh, score=conf, limit=self._nms_limit_post)
             roi = roi[indices]
-            level = level[indices]
 
-            for l in range(len(self._scales)):
+            size = self.xp.sqrt(self.xp.prod(roi[:, 2:] - roi[:, :2], axis=1))
+            level = self.xp.floor(self.xp.log2(
+                size / self._canonical_scale + 1e-6)) \
+                .astype(np.int32)
+            level = self.xp.clip(
+                level + len(self._scales) // 2,
+                0, len(self._scales) - 2)
+
+            for l in range(len(self._scales) - 1):
                 roi_l = roi[level == l]
                 rois[l].append(roi_l)
                 roi_indices[l].append(self.xp.array((i,) * len(roi_l)))
 
-        for l in range(len(self._scales)):
+        for l in range(len(self._scales) - 1):
             rois[l] = self.xp.vstack(rois[l]).astype(np.float32)
             roi_indices[l] = self.xp.hstack(roi_indices[l]).astype(np.int32)
 
