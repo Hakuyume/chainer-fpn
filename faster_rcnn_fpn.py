@@ -163,7 +163,7 @@ class FPNResNet101(chainer.Chain):
     def __init__(self):
         super().__init__()
         with self.init_scope():
-            self.resnet = chainercv.links.ResNet101(n_class=1, arch='fb')
+            self.resnet = chainercv.links.ResNet101(n_class=1, arch='he')
         self.resnet.pick = ('res2', 'res3', 'res4', 'res5')
         self.resnet.remove_unused()
         self.resnet.pool1 = lambda x: F.max_pooling_2d(
