@@ -30,11 +30,11 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
         self.use_preset('visualize')
 
-    def __call__(self, x, sizes):
+    def __call__(self, x):
         hs = self.extractor(x)
         rpn_locs, rpn_confs = self.rpn(hs)
         rois, roi_indices = self.rpn.decode(
-            rpn_locs, rpn_confs, [h.shape[2:] for h in hs], sizes)
+            rpn_locs, rpn_confs, x.shape, [h.shape for h in hs])
         locs, confs = self.head(hs[:-1], rois, roi_indices)
         return rpn_locs, rpn_confs, rois, roi_indices, locs, confs
 
@@ -53,7 +53,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         x, sizes = self._prepare(imgs)
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            _, _, rois, roi_indices, locs, confs = self(x, sizes)
+            _, _, rois, roi_indices, locs, confs = self(x)
 
         bboxes = []
         labels = []
@@ -229,11 +229,11 @@ class RPN(chainer.Chain):
 
         return locs, confs
 
-    def decode(self, locs, confs, shapes, sizes):
+    def decode(self, locs, confs, x_shape, h_shapes):
         anchors = []
-        for l, (H, W) in enumerate(shapes):
-            u, v, ar = np.meshgrid(
-                np.arange(H), np.arange(W), self._anchor_ratios)
+        for l, (_, _, H, W) in enumerate(h_shapes):
+            v, u, ar = np.meshgrid(
+                np.arange(W), np.arange(H), self._anchor_ratios)
             w = np.round(1 / np.sqrt(ar) / self._scales[l])
             h = np.round(w * ar)
             anchor = np.stack((u, v, h, w)).reshape((4, -1)).transpose()
@@ -243,7 +243,7 @@ class RPN(chainer.Chain):
 
         rois = [[] for _ in range(len(self._scales) - 1)]
         roi_indices = [[] for _ in range(len(self._scales) - 1)]
-        for i in range(len(sizes)):
+        for i in range(x_shape[0]):
             roi = []
             conf = []
             for l in range(len(self._scales)):
@@ -257,32 +257,40 @@ class RPN(chainer.Chain):
                 roi_l[:, :2] -= roi_l[:, 2:] / 2
                 roi_l[:, 2:] += roi_l[:, :2] - 1
 
+                order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
+                roi_l = roi_l[order]
+                conf_l = conf_l[order]
+
                 roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
                 roi_l[:, 2:] = self.xp.minimum(
-                    roi_l[:, 2:], self.xp.array(sizes[i]))
+                    roi_l[:, 2:], self.xp.array(x_shape[2:]) - 1)
 
-                mask = (roi_l[:, :2] < roi_l[:, 2:]).all(axis=1)
+                mask = (roi_l[:, 2:] - roi_l[:, :2] + 1 > 0).all(axis=1)
                 roi_l = roi_l[mask]
                 conf_l = conf_l[mask]
 
-                order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
-                roi.append(roi_l[order])
-                conf.append(conf_l[order])
+                roi_l[:, 2:] += 1
+                indices = utils.non_maximum_suppression(
+                    roi_l, self._nms_thresh, limit=self._nms_limit_post)
+                roi_l[:, 2:] -= 1
+                roi_l = roi_l[indices]
+                conf_l = conf_l[indices]
+
+                roi.append(roi_l)
+                conf.append(conf_l)
 
             roi = self.xp.vstack(roi).astype(np.float32)
             conf = self.xp.hstack(conf).astype(np.float32)
 
-            indices = utils.non_maximum_suppression(
-                roi, self._nms_thresh, score=conf, limit=self._nms_limit_post)
-            roi = roi[indices]
+            order = self.xp.argsort(-conf)[:self._nms_limit_post]
+            roi = roi[order]
 
-            size = self.xp.sqrt(self.xp.prod(roi[:, 2:] - roi[:, :2], axis=1))
+            size = self.xp.sqrt(self.xp.prod(
+                roi[:, 2:] - roi[:, :2] + 1, axis=1))
             level = self.xp.floor(self.xp.log2(
-                size / self._canonical_scale + 1e-6)) \
-                .astype(np.int32)
+                size / self._canonical_scale + 1e-6)).astype(np.int32)
             level = self.xp.clip(
-                level + len(self._scales) // 2,
-                0, len(self._scales) - 2)
+                level + len(self._scales) // 2, 0, len(self._scales) - 2)
 
             for l in range(len(self._scales) - 1):
                 roi_l = roi[level == l]
