@@ -61,7 +61,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         scores = []
         for i in range(x.shape[0]):
             bbox, label, score = self._decode(
-                i, rois, roi_indices, locs, confs)
+                rois, roi_indices, locs, confs, i, sizes[i])
 
             bbox = cuda.to_cpu(bbox)
             label = cuda.to_cpu(label)
@@ -99,7 +99,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         x = self.xp.array(x)
         return x, sizes
 
-    def _decode(self, i, rois, roi_indices, locs, confs):
+    def _decode(self, rois, roi_indices, locs, confs, i, size):
         bbox = []
         score = []
         for l, scale in enumerate(self.extractor.scales[:-1]):
@@ -118,6 +118,10 @@ class FasterRCNNFPNResNet101(chainer.Chain):
                 self.xp.minimum(loc_l[:, :, 2:] * self._std[1], _clip))
             bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
             bbox_l[:, :, 2:] += bbox_l[:, :, :2]
+
+            bbox_l[:, :, :2] = self.xp.maximum(bbox_l[:, :, :2], 0)
+            bbox_l[:, :, 2:] = self.xp.minimum(
+                bbox_l[:, :, 2:], self.xp.array(size))
 
             conf_l = self.xp.exp(conf_l)
             score_l = conf_l / self.xp.sum(conf_l, axis=1, keepdims=True)
