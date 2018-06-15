@@ -41,7 +41,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
     def use_preset(self, preset):
         if preset == 'visualize':
             self.nms_thresh = 0.5
-            self.score_thresh = 0.5
+            self.score_thresh = 0.7
         elif preset == 'evaluate':
             self.nms_thresh = 0.5
             self.score_thresh = 0.001
