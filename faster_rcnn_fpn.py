@@ -50,8 +50,8 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             raise ValueError('preset must be visualize or evaluate')
 
     def predict(self, imgs):
-        sizes_orig = [img.shape[1:] for img in imgs]
-        x, sizes = self._prepare(imgs)
+        sizes = [img.shape[1:] for img in imgs]
+        x, scales = self._prepare(imgs)
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
             _, _, rois, roi_indices, locs, confs = self(x)
@@ -61,13 +61,11 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         scores = []
         for i in range(x.shape[0]):
             bbox, label, score = self._decode(
-                rois, roi_indices, locs, confs, i, sizes[i])
+                rois, roi_indices, locs, confs, i, scales[i], sizes[i])
 
             bbox = cuda.to_cpu(bbox)
             label = cuda.to_cpu(label)
             score = cuda.to_cpu(score)
-
-            bbox = transforms.resize_bbox(bbox, sizes[i], sizes_orig[i])
 
             bboxes.append(bbox)
             labels.append(label)
@@ -76,15 +74,15 @@ class FasterRCNNFPNResNet101(chainer.Chain):
         return bboxes, labels, scores
 
     def _prepare(self, imgs):
-        sizes = []
+        scales = []
         resized_imgs = []
         for img in imgs:
             _, H, W = img.shape
             scale = self._min_size / min(H, W)
             if scale * max(H, W) > self._max_size:
                 scale = self._max_size / max(H, W)
+            scales.append(scale)
             H, W = int(H * scale), int(W * scale)
-            sizes.append((H, W))
             img = transforms.resize(img, (H, W))
             img -= self._mean
             resized_imgs.append(img)
@@ -97,19 +95,19 @@ class FasterRCNNFPNResNet101(chainer.Chain):
             x[i, :, :H, :W] = img
 
         x = self.xp.array(x)
-        return x, sizes
+        return x, scales
 
-    def _decode(self, rois, roi_indices, locs, confs, i, size):
+    def _decode(self, rois, roi_indices, locs, confs, i, scale, size):
         bbox = []
         score = []
-        for l, scale in enumerate(self.extractor.scales[:-1]):
+        for l in range(len(self.extractor.scales) - 1):
             mask = roi_indices[l] == i
             roi_l = rois[l][mask]
             loc_l = locs[l].array[mask]
             conf_l = confs[l].array[mask]
 
             bbox_l = self.xp.broadcast_to(
-                roi_l[:, None], loc_l.shape).copy()
+                roi_l[:, None], loc_l.shape) / scale
             bbox_l[:, :, 2:] -= bbox_l[:, :, :2] + 1
             bbox_l[:, :, :2] += bbox_l[:, :, 2:] / 2
             bbox_l[:, :, :2] += loc_l[:, :, :2] * \
