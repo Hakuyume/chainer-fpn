@@ -20,6 +20,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
     _min_size = 800
     _max_size = 1333
     _stride = 32
+    _std = (0.1, 0.2)
 
     def __init__(self, n_fg_class):
         super().__init__()
@@ -111,9 +112,10 @@ class FasterRCNNFPNResNet101(chainer.Chain):
                 roi_l[:, None], loc_l.shape).copy()
             bbox_l[:, :, 2:] -= bbox_l[:, :, :2] + 1
             bbox_l[:, :, :2] += bbox_l[:, :, 2:] / 2
-            bbox_l[:, :, :2] += loc_l[:, :, :2] * bbox_l[:, :, 2:]
+            bbox_l[:, :, :2] += loc_l[:, :, :2] * \
+                bbox_l[:, :, 2:] * self._std[0]
             bbox_l[:, :, 2:] *= self.xp.exp(
-                self.xp.minimum(loc_l[:, :, 2:], _clip))
+                self.xp.minimum(loc_l[:, :, 2:] * self._std[1], _clip))
             bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
             bbox_l[:, :, 2:] += bbox_l[:, :, :2] - 1
 
@@ -308,7 +310,6 @@ class Head(chainer.Chain):
 
     _roi_size = 7
     _roi_sample_ratio = 2
-    _std = (0.1, 0.2)
 
     def __init__(self, n_class, scales):
         super().__init__()
@@ -346,8 +347,6 @@ class Head(chainer.Chain):
 
             loc = self.loc(h)
             loc = F.reshape(loc, (loc.shape[0], -1, 4))
-            loc *= self.xp.array(
-                (self._std[0], self._std[0], self._std[1], self._std[1]))
             locs.append(loc)
 
             conf = self.conf(h)
