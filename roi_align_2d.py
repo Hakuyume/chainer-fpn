@@ -86,12 +86,11 @@ class ROIAlign2D(function.Function):
             count = roi_bin_grid_h * roi_bin_grid_w
 
             output_val = 0.
-            iy = 0
-            while iy < roi_bin_grid_h:
+            #print('roi bin grid', roi_bin_grid_h, roi_bin_grid_w)
+            for iy in range(roi_bin_grid_h):
                 y = roi_start_h + ph * bin_size_h + \
                     (iy + .5) * bin_size_h / roi_bin_grid_h
-                ix = 0
-                while ix < roi_bin_grid_w:
+                for ix in range(roi_bin_grid_w):
                     x = roi_start_w + pw * bin_size_w + \
                         (ix + .5) * bin_size_w / roi_bin_grid_w
 
@@ -138,9 +137,6 @@ class ROIAlign2D(function.Function):
                     output_val += w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4
 
                     # }}
-
-                    ix += 1
-                iy += 1
 
             output_val /= count
             top_data[n, c, ph, pw] = output_val
