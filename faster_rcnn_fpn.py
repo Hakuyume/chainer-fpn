@@ -108,7 +108,7 @@ class FasterRCNNFPNResNet101(chainer.Chain):
 
             bbox_l = self.xp.broadcast_to(
                 roi_l[:, None], loc_l.shape) / scale
-            bbox_l[:, :, 2:] -= bbox_l[:, :, :2] + 1
+            bbox_l[:, :, 2:] -= bbox_l[:, :, :2]
             bbox_l[:, :, :2] += bbox_l[:, :, 2:] / 2
             bbox_l[:, :, :2] += loc_l[:, :, :2] * \
                 bbox_l[:, :, 2:] * self._std[0]
@@ -259,7 +259,7 @@ class RPN(chainer.Chain):
                 roi_l[:, 2:] *= self.xp.exp(
                     self.xp.minimum(loc_l[:, 2:], _clip))
                 roi_l[:, :2] -= roi_l[:, 2:] / 2
-                roi_l[:, 2:] += roi_l[:, :2] - 1
+                roi_l[:, 2:] += roi_l[:, :2]
 
                 order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
                 roi_l = roi_l[order]
@@ -267,16 +267,14 @@ class RPN(chainer.Chain):
 
                 roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
                 roi_l[:, 2:] = self.xp.minimum(
-                    roi_l[:, 2:], self.xp.array(x_shape[2:]) - 1)
+                    roi_l[:, 2:], self.xp.array(x_shape[2:]))
 
-                mask = (roi_l[:, 2:] - roi_l[:, :2] + 1 > 0).all(axis=1)
+                mask = (roi_l[:, 2:] - roi_l[:, :2] > 0).all(axis=1)
                 roi_l = roi_l[mask]
                 conf_l = conf_l[mask]
 
-                roi_l[:, 2:] += 1
                 indices = utils.non_maximum_suppression(
                     roi_l, self._nms_thresh, limit=self._nms_limit_post)
-                roi_l[:, 2:] -= 1
                 roi_l = roi_l[indices]
                 conf_l = conf_l[indices]
 
@@ -289,8 +287,7 @@ class RPN(chainer.Chain):
             order = self.xp.argsort(-conf)[:self._nms_limit_post]
             roi = roi[order]
 
-            size = self.xp.sqrt(self.xp.prod(
-                roi[:, 2:] - roi[:, :2] + 1, axis=1))
+            size = self.xp.sqrt(self.xp.prod(roi[:, 2:] - roi[:, :2], axis=1))
             level = self.xp.floor(self.xp.log2(
                 size / self._canonical_scale + 1e-6)).astype(np.int32)
             level = self.xp.clip(
