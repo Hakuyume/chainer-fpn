@@ -57,13 +57,9 @@ class FasterRCNN(chainer.Chain):
             bbox, label, score = self._decode(
                 rois, roi_indices, locs, confs, i, scales[i], sizes[i])
 
-            bbox = cuda.to_cpu(bbox)
-            label = cuda.to_cpu(label)
-            score = cuda.to_cpu(score)
-
-            bboxes.append(bbox)
-            labels.append(label)
-            scores.append(score)
+            bboxes.append(cuda.to_cpu(bbox))
+            labels.append(cuda.to_cpu(label))
+            scores.append(cuda.to_cpu(score))
 
         return bboxes, labels, scores
 
