@@ -93,7 +93,7 @@ def main():
         if new_name is None:
             continue
 
-        if new_name == 'extractor/resnet/conv1/conv/W':
+        if new_name == 'extractor/base/conv1/conv/W':
             value = value[:, ::-1]
             print(name, '->', new_name, '(BGR -> RGB)')
         elif re.fullmatch(r'.+/loc/[Wb]', new_name):
