@@ -8,25 +8,35 @@ import chainercv
 from fpn.fpn import FPN
 
 
+def _make_resnet(cls):
+    resnet = cls(n_class=1, arch='he')
+
+    resnet.mean = np.array((122.7717, 115.9465, 102.9801))[:, None, None]
+    resnet.pool1 = lambda x: F.max_pooling_2d(
+        x, 3, stride=2, pad=1, cover_all=False)
+    for link in resnet.links():
+        if hasattr(link, 'bn'):
+            size = len(link.bn.avg_mean)
+            del link.bn
+            with link.init_scope():
+                link.bn = AffineChannel(size)
+
+
+class FPNResNet50(FPN):
+
+    def __init__(self):
+        base = _make_resnet(chainercv.links.ResNet50)
+        base.pick = ('res2', 'res3', 'res4', 'res5')
+        base.remove_unused()
+        super().__init__(base, (1 / 4, 1 / 8, 1 / 16, 1 / 32, 1 / 64))
+
+
 class FPNResNet101(FPN):
 
     def __init__(self):
-        base = chainercv.links.ResNet101(n_class=1, arch='he')
-
-        # some fix
-        base.mean = np.array((122.7717, 115.9465, 102.9801))[:, None, None]
-        base.pool1 = lambda x: F.max_pooling_2d(
-            x, 3, stride=2, pad=1, cover_all=False)
-        for link in base.links():
-            if hasattr(link, 'bn'):
-                size = len(link.bn.avg_mean)
-                del link.bn
-                with link.init_scope():
-                    link.bn = AffineChannel(size)
-
+        base = _make_resnet(chainercv.links.ResNet101)
         base.pick = ('res2', 'res3', 'res4', 'res5')
         base.remove_unused()
-
         super().__init__(base, (1 / 4, 1 / 8, 1 / 16, 1 / 32, 1 / 64))
 
 
