@@ -35,8 +35,7 @@ class FasterRCNN(chainer.Chain):
         assert(not chainer.config.train)
         hs = self.extractor(x)
         rpn_locs, rpn_confs = self.rpn(hs)
-        rois, roi_indices = self.rpn.decode(
-            rpn_locs, rpn_confs, x.shape, [h.shape for h in hs])
+        rois, roi_indices = self.rpn.decode(rpn_locs, rpn_confs, x.shape)
         locs, confs = self.head(hs, rois, roi_indices)
         return rois, roi_indices, locs, confs
 

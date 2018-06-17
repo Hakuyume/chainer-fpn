@@ -35,19 +35,19 @@ class RPN(chainer.Chain):
 
             loc = self.loc(h)
             loc = F.transpose(loc, (0, 2, 3, 1))
-            loc = F.reshape(loc, (loc.shape[0], -1, 4))
+            loc = F.reshape(loc, loc.shape[:2] + (-1, 4))
             locs.append(loc)
 
             conf = self.conf(h)
             conf = F.transpose(conf, (0, 2, 3, 1))
-            conf = F.reshape(conf, (conf.shape[0], -1))
             confs.append(conf)
 
         return locs, confs
 
-    def decode(self, locs, confs, x_shape, h_shapes):
+    def decode(self, locs, confs, x_shape):
         anchors = []
-        for l, (_, _, H, W) in enumerate(h_shapes):
+        for l, conf in enumerate(confs):
+            _, H, W, _ = conf.shape
             v, u, ar = np.meshgrid(
                 np.arange(W), np.arange(H), self._anchor_ratios)
             w = np.round(1 / np.sqrt(ar) / self._scales[l])
@@ -63,8 +63,8 @@ class RPN(chainer.Chain):
             roi = []
             conf = []
             for l in range(len(self._scales)):
-                loc_l = locs[l].array[i]
-                conf_l = confs[l].array[i]
+                loc_l = locs[l].array[i].reshape((-1, 4))
+                conf_l = confs[l].array[i].reshape(-1)
 
                 roi_l = anchors[l].copy()
                 roi_l[:, :2] += loc_l[:, :2] * roi_l[:, 2:]
