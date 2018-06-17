@@ -7,7 +7,7 @@ import chainercv
 from chainercv.datasets import coco_bbox_label_names
 from chainercv import utils
 
-from faster_rcnn_fpn import FasterRCNNFPNResNet101
+from fpn import FasterRCNNFPNResNet101
 
 
 def main():

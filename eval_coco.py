@@ -9,7 +9,7 @@ from chainercv.evaluations import eval_detection_coco
 from chainercv.utils import apply_to_iterator
 from chainercv.utils import ProgressHook
 
-from faster_rcnn_fpn import FasterRCNNFPNResNet101
+from fpn import FasterRCNNFPNResNet101
 
 
 def main():

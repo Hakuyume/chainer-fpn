@@ -21,16 +21,16 @@ def rename(name):
 def rename_fpn(name):
     m = re.fullmatch(r'(?:res_)?conv1_([wb]|bn_[sb])', name)
     if m:
-        return 'extractor/resnet/conv1/{}'.format(conv_bn_name[m.group(1)])
+        return 'extractor/base/conv1/{}'.format(conv_bn_name[m.group(1)])
 
     m = re.fullmatch(r'res(\d)_0_branch1_([wb]|bn_[sb])', name)
     if m:
-        return 'extractor/resnet/res{}/a/residual_conv/{}' \
+        return 'extractor/base/res{}/a/residual_conv/{}' \
             .format(m.group(1), conv_bn_name[m.group(2)])
 
     m = re.fullmatch(r'res(\d)_(\d+)_branch2([a-c])_([wb]|bn_[sb])', name)
     if m:
-        return 'extractor/resnet/res{}/{}/conv{}/{}' \
+        return 'extractor/base/res{}/{}/conv{}/{}' \
             .format(m.group(1),
                     'a' if m.group(2) == '0' else 'b{}'.format(m.group(2)),
                     {'a': 1, 'b': 2, 'c': 3}[m.group(3)],
@@ -38,20 +38,20 @@ def rename_fpn(name):
 
     m = re.fullmatch(r'fpn_inner_res(\d)_\d+_sum_(?:lateral_)?([wb])', name)
     if m:
-        return 'extractor/inner{}/{}' \
-            .format(m.group(1), conv_name[m.group(2)])
+        return 'extractor/inner/{}/{}' \
+            .format(int(m.group(1)) - 2, conv_name[m.group(2)])
 
     m = re.fullmatch(r'fpn_res(\d)_\d+_sum_([wb])', name)
     if m:
-        return 'extractor/outer{}/{}' \
-            .format(m.group(1), conv_name[m.group(2)])
+        return 'extractor/outer/{}/{}' \
+            .format(int(m.group(1)) - 2, conv_name[m.group(2)])
 
+
+def rename_rpn(name):
     m = re.fullmatch(r'conv_rpn_fpn2_([wb])', name)
     if m:
         return 'rpn/conv/{}'.format(conv_name[m.group(1)])
 
-
-def rename_rpn(name):
     m = re.fullmatch(r'rpn_bbox_pred_fpn2_([wb])', name)
     if m:
         return 'rpn/loc/{}'.format(conv_name[m.group(1)])
