@@ -35,7 +35,7 @@ class RPN(chainer.Chain):
 
             loc = self.loc(h)
             loc = F.transpose(loc, (0, 2, 3, 1))
-            loc = F.reshape(loc, loc.shape[:2] + (-1, 4))
+            loc = F.reshape(loc, loc.shape[:3] + (-1, 4))
             locs.append(loc)
 
             conf = self.conf(h)
