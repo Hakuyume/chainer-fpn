@@ -1,9 +1,13 @@
 import numpy as np
 
 import chainer
+from chainer.backends import cuda
 import chainer.functions as F
 import chainer.links as L
 
+from chainercv import utils
+
+from fpn import exp_clip
 from fpn.roi_align_2d import roi_align_2d
 
 
@@ -11,6 +15,7 @@ class Head(chainer.Chain):
 
     _roi_size = 7
     _roi_sample_ratio = 2
+    _std = (0.1, 0.2)
 
     def __init__(self, n_class, scales):
         super().__init__()
@@ -53,3 +58,77 @@ class Head(chainer.Chain):
             conf = self.conf(h)
             confs.append(conf)
         return locs, confs
+
+    def decode(self, rois, roi_indices, locs, confs,
+               scales, sizes, nms_thresh, score_thresh):
+        bboxes = []
+        labels = []
+        scores = []
+        for i in range(len(scales)):
+            bbox = []
+            score = []
+            for l in range(len(self._scales) - 1):
+                mask = roi_indices[l] == i
+                roi_l = rois[l][mask]
+                loc_l = locs[l].array[mask]
+                conf_l = confs[l].array[mask]
+
+                bbox_l = self.xp.broadcast_to(
+                    roi_l[:, None], loc_l.shape) / scales[i]
+                bbox_l[:, :, 2:] -= bbox_l[:, :, :2]
+                bbox_l[:, :, :2] += bbox_l[:, :, 2:] / 2
+                bbox_l[:, :, :2] += loc_l[:, :, :2] * \
+                    bbox_l[:, :, 2:] * self._std[0]
+                bbox_l[:, :, 2:] *= self.xp.exp(
+                    self.xp.minimum(loc_l[:, :, 2:] * self._std[1], exp_clip))
+                bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
+                bbox_l[:, :, 2:] += bbox_l[:, :, :2]
+
+                bbox_l[:, :, :2] = self.xp.maximum(bbox_l[:, :, :2], 0)
+                bbox_l[:, :, 2:] = self.xp.minimum(
+                    bbox_l[:, :, 2:], self.xp.array(sizes[i]))
+
+                conf_l = self.xp.exp(conf_l)
+                score_l = conf_l / self.xp.sum(conf_l, axis=1, keepdims=True)
+
+                bbox.append(bbox_l)
+                score.append(score_l)
+
+            bbox = self.xp.vstack(bbox)
+            score = self.xp.vstack(score)
+            bbox, label, score = _suppress(
+                bbox, score, nms_thresh, score_thresh)
+
+            bboxes.append(bbox)
+            labels.append(label)
+            scores.append(score)
+
+        return bboxes, labels, scores
+
+
+def _suppress(raw_bbox, raw_score, nms_thresh, score_thresh):
+    xp = cuda.get_array_module(raw_bbox, raw_score)
+
+    bbox = []
+    label = []
+    score = []
+    for l in range(raw_score.shape[1] - 1):
+        bbox_l = raw_bbox[:, l + 1]
+        score_l = raw_score[:, l + 1]
+
+        mask = score_l >= score_thresh
+        bbox_l = bbox_l[mask]
+        score_l = score_l[mask]
+
+        indices = utils.non_maximum_suppression(bbox_l, nms_thresh, score_l)
+        bbox_l = bbox_l[indices]
+        score_l = score_l[indices]
+
+        bbox.append(bbox_l)
+        label.append(xp.array((l,) * len(bbox_l)))
+        score.append(score_l)
+
+    bbox = xp.vstack(bbox).astype(np.float32)
+    label = xp.hstack(label).astype(np.int32)
+    score = xp.hstack(score).astype(np.float32)
+    return bbox, label, score
