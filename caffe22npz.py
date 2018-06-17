@@ -64,7 +64,7 @@ def rename_rpn(name):
 def rename_head(name):
     m = re.fullmatch(r'fc(\d)_([wb])', name)
     if m:
-        return 'head/fc{}/{}'.format(m.group(1), fc_name[m.group(2)])
+        return 'head/fc{}/{}'.format(int(m.group(1)) - 5, fc_name[m.group(2)])
 
     m = re.fullmatch(r'bbox_pred_([wb])', name)
     if m:

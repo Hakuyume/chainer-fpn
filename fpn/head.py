@@ -15,8 +15,8 @@ class Head(chainer.Chain):
     def __init__(self, n_class, scales):
         super().__init__()
         with self.init_scope():
-            self.fc6 = L.Linear(1024)
-            self.fc7 = L.Linear(1024)
+            self.fc1 = L.Linear(1024)
+            self.fc2 = L.Linear(1024)
             self.loc = L.Linear(n_class * 4)
             self.conf = L.Linear(n_class)
 
@@ -43,8 +43,8 @@ class Head(chainer.Chain):
                 self._scales[l], self._roi_sample_ratio)
 
             h = F.reshape(h, (h.shape[0], -1))
-            h = F.relu(self.fc6(h))
-            h = F.relu(self.fc7(h))
+            h = F.relu(self.fc1(h))
+            h = F.relu(self.fc2(h))
 
             loc = self.loc(h)
             loc = F.reshape(loc, (loc.shape[0], -1, 4))
