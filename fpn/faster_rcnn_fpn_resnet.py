@@ -26,7 +26,7 @@ def _make_fpn(cls):
             with link.init_scope():
                 link.bn = AffineChannel(size)
 
-    return FPN(base, (1 / 4, 1 / 8, 1 / 16, 1 / 32, 1 / 64))
+    return FPN(base, len(base.pick), (1 / 4, 1 / 8, 1 / 16, 1 / 32, 1 / 64))
 
 
 class FasterRCNNFPNResNet50(FasterRCNN):

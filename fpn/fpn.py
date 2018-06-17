@@ -5,14 +5,15 @@ import chainer.links as L
 
 class FPN(chainer.Chain):
 
-    def __init__(self, base, scales):
+    def __init__(self, base, n_base_output, scales):
         super().__init__()
         with self.init_scope():
             self.base = base
             self.inner = chainer.ChainList(
-                *(L.Convolution2D(256, 1) for _ in base.pick))
+                *(L.Convolution2D(256, 1) for _ in range(n_base_output)))
             self.outer = chainer.ChainList(
-                *(L.Convolution2D(256, 3, pad=1) for _ in base.pick))
+                *(L.Convolution2D(256, 3, pad=1)
+                  for _ in range(n_base_output)))
 
         self.scales = scales
 
