@@ -1,5 +1,11 @@
 # Feature Pyramid Networks
 
+## Performance
+
+| backbone | original (Detectron) | ours (weight conversion) | ours (train) |
+|:-:|:-:|:-:|:-:|
+| ResNet50 | 36.7 % | 35.7 % | - |
+| ResNet101 | 39.4 % | 38.2 % | - |
 
 ## Demo
 
