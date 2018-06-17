@@ -86,7 +86,6 @@ class ROIAlign2D(function.Function):
             count = roi_bin_grid_h * roi_bin_grid_w
 
             output_val = 0.
-            #print('roi bin grid', roi_bin_grid_h, roi_bin_grid_w)
             for iy in range(roi_bin_grid_h):
                 y = roi_start_h + ph * bin_size_h + \
                     (iy + .5) * bin_size_h / roi_bin_grid_h
