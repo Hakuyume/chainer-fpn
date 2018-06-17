@@ -17,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', type=int, default=-1)
     parser.add_argument('--model', choices=('resnet50', 'resnet101'))
-    parser.add_argument('pretrained-model')
+    parser.add_argument('pretrained_model')
     args = parser.parse_args()
 
     if args.model == 'resnet50':
