@@ -310,12 +310,10 @@ class ROIAlign2D(function.Function):
 
             count = roi_bin_grid_h * roi_bin_grid_w
 
-            iy = 0
-            while iy < roi_bin_grid_h:
+            for iy in range(roi_bin_grid_h):
                 y = roi_start_h + ph * bin_size_h + \
                     (iy + .5) * bin_size_h / roi_bin_grid_h
-                ix = 0
-                while ix < roi_bin_grid_w:
+                for ix in range(roi_bin_grid_w):
                     x = roi_start_w + pw * bin_size_w + \
                         (ix + .5) * bin_size_w / roi_bin_grid_w
 
@@ -366,8 +364,6 @@ class ROIAlign2D(function.Function):
                         bottom_diff[roi_batch_ind, c, y_low, x_high] += g2
                         bottom_diff[roi_batch_ind, c, y_high, x_low] += g3
                         bottom_diff[roi_batch_ind, c, y_high, x_high] += g4
-                    ix += 1
-                iy += 1
 
         return bottom_diff, None
 
