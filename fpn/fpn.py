@@ -9,11 +9,12 @@ class FPN(chainer.Chain):
         super().__init__()
         with self.init_scope():
             self.base = base
-            self.inner = chainer.ChainList(
-                *(L.Convolution2D(256, 1) for _ in range(n_base_output)))
-            self.outer = chainer.ChainList(
-                *(L.Convolution2D(256, 3, pad=1)
-                  for _ in range(n_base_output)))
+            self.inner = chainer.ChainList()
+            self.outer = chainer.ChainList()
+
+        for _ in range(n_base_output):
+            self.inner.append(L.Convolution2D(256, 1))
+            self.outer.append(L.Convolution2D(256, 3, pad=1))
 
         self.scales = scales
 
