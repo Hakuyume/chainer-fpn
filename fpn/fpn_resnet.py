@@ -21,6 +21,8 @@ def _make_resnet(cls):
             with link.init_scope():
                 link.bn = AffineChannel(size)
 
+    return resnet
+
 
 class FPNResNet50(FPN):
 
