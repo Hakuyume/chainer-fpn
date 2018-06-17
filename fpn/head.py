@@ -26,7 +26,7 @@ class Head(chainer.Chain):
     def __call__(self, hs, rois, roi_indices):
         locs = []
         confs = []
-        for l in range(len(self._scales)):
+        for l, h in enumerate(hs):
             if len(rois[l]) == 0:
                 locs.append(chainer.Variable(
                     self.xp.empty((0, self._n_class, 4), dtype=np.float32)))
@@ -38,7 +38,7 @@ class Head(chainer.Chain):
                 (roi_indices[l][:, None], rois[l][:, [1, 0, 3, 2]])) \
                 .astype(np.float32)
             h = roi_align_2d(
-                hs[l], roi_iltrb,
+                h, roi_iltrb,
                 self._roi_size, self._roi_size,
                 self._scales[l], self._roi_sample_ratio)
 

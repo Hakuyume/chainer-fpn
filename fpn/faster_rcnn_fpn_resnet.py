@@ -11,5 +11,5 @@ class FasterRCNNFPNResNet101(FasterRCNN):
         super().__init__(
             extractor=extractor,
             rpn=RPN(extractor.scales),
-            head=Head(n_fg_class + 1, extractor.scales[:-1])
+            head=Head(n_fg_class + 1, extractor.scales)
         )
