@@ -3,6 +3,7 @@ import numpy as np
 import chainer
 from chainer.backends import cuda
 import chainer.functions as F
+from chainer import initializers
 import chainer.links as L
 
 from chainercv import utils
@@ -19,11 +20,17 @@ class Head(chainer.Chain):
 
     def __init__(self, n_class, scales):
         super().__init__()
+
+        fc_init = {
+            'initialW': initializers.LeCunUniform(1 / np.sqrt(3)),
+            'initial_bias': initializers.LeCunUniform(1 / np.sqrt(3)),
+        }
         with self.init_scope():
-            self.fc1 = L.Linear(1024)
-            self.fc2 = L.Linear(1024)
-            self.loc = L.Linear(n_class * 4)
-            self.conf = L.Linear(n_class)
+            self.fc1 = L.Linear(1024, **fc_init)
+            self.fc2 = L.Linear(1024, **fc_init)
+            self.loc = L.Linear(
+                n_class * 4, initialW=initializers.Normal(0.001))
+            self.conf = L.Linear(n_class, initialW=initializers.Normal(0.01))
 
         self._n_class = n_class
         self._scales = scales

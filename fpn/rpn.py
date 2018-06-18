@@ -2,6 +2,7 @@ import numpy as np
 
 import chainer
 import chainer.functions as F
+from chainer import initializers
 import chainer.links as L
 
 from chainercv import utils
@@ -20,10 +21,12 @@ class RPN(chainer.Chain):
 
     def __init__(self, scales):
         super().__init__()
+
+        init = {'initialW': initializers.Normal(0.01)}
         with self.init_scope():
-            self.conv = L.Convolution2D(256, 3, pad=1)
-            self.loc = L.Convolution2D(len(self._anchor_ratios) * 4, 1)
-            self.conf = L.Convolution2D(len(self._anchor_ratios), 1)
+            self.conv = L.Convolution2D(256, 3, pad=1, **init)
+            self.loc = L.Convolution2D(len(self._anchor_ratios) * 4, 1, **init)
+            self.conf = L.Convolution2D(len(self._anchor_ratios), 1, **init)
 
         self._scales = scales
 

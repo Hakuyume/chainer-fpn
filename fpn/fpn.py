@@ -1,5 +1,6 @@
 import chainer
 import chainer.functions as F
+from chainer import initializers
 import chainer.links as L
 
 
@@ -12,9 +13,10 @@ class FPN(chainer.Chain):
             self.inner = chainer.ChainList()
             self.outer = chainer.ChainList()
 
+        init = {'initialW': initializers.GlorotNormal()}
         for _ in range(n_base_output):
-            self.inner.append(L.Convolution2D(256, 1))
-            self.outer.append(L.Convolution2D(256, 3, pad=1))
+            self.inner.append(L.Convolution2D(256, 1, **init))
+            self.outer.append(L.Convolution2D(256, 3, pad=1, **init))
 
         self.scales = scales
 
