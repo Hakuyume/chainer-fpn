@@ -22,8 +22,8 @@ class Head(chainer.Chain):
         super().__init__()
 
         fc_init = {
-            'initialW': initializers.LeCunUniform(1 / np.sqrt(3)),
-            'initial_bias': initializers.LeCunUniform(1 / np.sqrt(3)),
+            'initialW': Caffe2FCUniform(),
+            'initial_bias': Caffe2FCUniform(),
         }
         with self.init_scope():
             self.fc1 = L.Linear(1024, **fc_init)
@@ -112,6 +112,13 @@ class Head(chainer.Chain):
             scores.append(score)
 
         return bboxes, labels, scores
+
+
+class Caffe2FCUniform(chainer.initializer.Initializer):
+
+    def __call__(self, array):
+        scale = 1 / np.sqrt(array.shape[-1])
+        initializers.Uniform(scale)(array)
 
 
 def _suppress(raw_bbox, raw_score, nms_thresh, score_thresh):
