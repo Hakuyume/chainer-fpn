@@ -57,6 +57,7 @@ class Head(chainer.Chain):
 
             conf = self.conf(h)
             confs.append(conf)
+
         return locs, confs
 
     def decode(self, rois, roi_indices, locs, confs,
