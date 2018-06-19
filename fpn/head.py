@@ -83,15 +83,18 @@ class Head(chainer.Chain):
 
                 bbox_l = self.xp.broadcast_to(
                     roi_l[:, None], loc_l.shape) / scales[i]
+                # tlbr -> yxhw
                 bbox_l[:, :, 2:] -= bbox_l[:, :, :2]
                 bbox_l[:, :, :2] += bbox_l[:, :, 2:] / 2
+                # offset
                 bbox_l[:, :, :2] += loc_l[:, :, :2] * \
                     bbox_l[:, :, 2:] * self._std[0]
                 bbox_l[:, :, 2:] *= self.xp.exp(
                     self.xp.minimum(loc_l[:, :, 2:] * self._std[1], exp_clip))
+                # yxhw -> tlbr
                 bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
                 bbox_l[:, :, 2:] += bbox_l[:, :, :2]
-
+                # clip
                 bbox_l[:, :, :2] = self.xp.maximum(bbox_l[:, :, :2], 0)
                 bbox_l[:, :, 2:] = self.xp.minimum(
                     bbox_l[:, :, 2:], self.xp.array(sizes[i]))

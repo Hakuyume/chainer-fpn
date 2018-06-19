@@ -87,14 +87,14 @@ class RPN(chainer.Chain):
                 # yxhw -> tlbr
                 roi_l[:, :2] -= roi_l[:, 2:] / 2
                 roi_l[:, 2:] += roi_l[:, :2]
+                # clip
+                roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
+                roi_l[:, 2:] = self.xp.minimum(
+                    roi_l[:, 2:], self.xp.array(x_shape[2:]))
 
                 order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
                 roi_l = roi_l[order]
                 conf_l = conf_l[order]
-
-                roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
-                roi_l[:, 2:] = self.xp.minimum(
-                    roi_l[:, 2:], self.xp.array(x_shape[2:]))
 
                 mask = (roi_l[:, 2:] - roi_l[:, :2] > 0).all(axis=1)
                 roi_l = roi_l[mask]
