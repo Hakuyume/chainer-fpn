@@ -105,7 +105,7 @@ def main():
 
         model[new_name] = value
 
-        m = re.fullmatch('(.+/bn)/gamma', new_name)
+        m = re.fullmatch(r'(.+/bn)/gamma', new_name)
         if m:
             print('(zeros)', '->', '{}/avg_mean'.format(m.group(1)))
             model['{}/avg_mean'.format(m.group(1))] = np.zeros_like(value)
