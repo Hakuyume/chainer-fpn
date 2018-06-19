@@ -15,8 +15,10 @@ class RPN(chainer.Chain):
     _anchor_size = 32
     _anchor_ratios = (0.5, 1, 2)
     _nms_thresh = 0.7
-    _nms_limit_pre = 1000
-    _nms_limit_post = 1000
+    _train_nms_limit_pre = 2000
+    _train_nms_limit_post = 2000
+    _test_nms_limit_pre = 1000
+    _test_nms_limit_post = 1000
     _canonical_scale = 224
 
     def __init__(self, scales):
@@ -65,6 +67,13 @@ class RPN(chainer.Chain):
         return anchors
 
     def decode(self, locs, confs, x_shape):
+        if chainer.config.train:
+            nms_limit_pre = self._train_nms_limit_pre
+            nms_limit_post = self._train_nms_limit_post
+        else:
+            nms_limit_pre = self._test_nms_limit_pre
+            nms_limit_post = self._test_nms_limit_post
+
         anchors = self.anchors(loc.shape[1:3] for loc in locs)
 
         rois = [[] for _ in self._scales]
@@ -92,7 +101,7 @@ class RPN(chainer.Chain):
                 roi_l[:, 2:] = self.xp.minimum(
                     roi_l[:, 2:], self.xp.array(x_shape[2:]))
 
-                order = self.xp.argsort(-conf_l)[:self._nms_limit_pre]
+                order = self.xp.argsort(-conf_l)[:nms_limit_pre]
                 roi_l = roi_l[order]
                 conf_l = conf_l[order]
 
@@ -101,7 +110,7 @@ class RPN(chainer.Chain):
                 conf_l = conf_l[mask]
 
                 indices = utils.non_maximum_suppression(
-                    roi_l, self._nms_thresh, limit=self._nms_limit_post)
+                    roi_l, self._nms_thresh, limit=nms_limit_post)
                 roi_l = roi_l[indices]
                 conf_l = conf_l[indices]
 
@@ -111,7 +120,7 @@ class RPN(chainer.Chain):
             roi = self.xp.vstack(roi).astype(np.float32)
             conf = self.xp.hstack(conf).astype(np.float32)
 
-            order = self.xp.argsort(-conf)[:self._nms_limit_post]
+            order = self.xp.argsort(-conf)[:nms_limit_post]
             roi = roi[order]
 
             size = self.xp.sqrt(self.xp.prod(roi[:, 2:] - roi[:, :2], axis=1))
