@@ -19,7 +19,6 @@ class RPN(chainer.Chain):
     _train_nms_limit_post = 2000
     _test_nms_limit_pre = 1000
     _test_nms_limit_post = 1000
-    _canonical_scale = 224
 
     def __init__(self, scales):
         super().__init__()
@@ -75,8 +74,8 @@ class RPN(chainer.Chain):
             nms_limit_pre = self._test_nms_limit_pre
             nms_limit_post = self._test_nms_limit_post
 
-        rois = [[] for _ in self._scales]
-        roi_indices = [[] for _ in self._scales]
+        rois = []
+        roi_indices = []
         for i in range(in_shape[0]):
             roi = []
             conf = []
@@ -122,20 +121,9 @@ class RPN(chainer.Chain):
             order = self.xp.argsort(-conf)[:nms_limit_post]
             roi = roi[order]
 
-            size = self.xp.sqrt(self.xp.prod(roi[:, 2:] - roi[:, :2], axis=1))
-            level = self.xp.floor(self.xp.log2(
-                size / self._canonical_scale + 1e-6)).astype(np.int32)
-            # skip last level
-            level = self.xp.clip(
-                level + len(self._scales) // 2, 0, len(self._scales) - 2)
+            rois.append(roi)
+            roi_indices.append(self.xp.array((i,) * len(roi)))
 
-            for l in range(len(self._scales)):
-                roi_l = roi[level == l]
-                rois[l].append(roi_l)
-                roi_indices[l].append(self.xp.array((i,) * len(roi_l)))
-
-        for l in range(len(self._scales)):
-            rois[l] = self.xp.vstack(rois[l]).astype(np.float32)
-            roi_indices[l] = self.xp.hstack(roi_indices[l]).astype(np.int32)
-
+        rois = self.xp.vstack(rois).astype(np.float32)
+        roi_indices = self.xp.hstack(roi_indices).astype(np.int32)
         return rois, roi_indices

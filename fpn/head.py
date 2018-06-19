@@ -14,6 +14,7 @@ from fpn.roi_align_2d import roi_align_2d
 
 class Head(chainer.Chain):
 
+    _canonical_scale = 224
     _roi_size = 7
     _roi_sample_ratio = 2
     _std = (0.1, 0.2)
@@ -36,18 +37,30 @@ class Head(chainer.Chain):
         self._scales = scales
 
     def __call__(self, hs, rois, roi_indices):
+        size = self.xp.sqrt(self.xp.prod(rois[:, 2:] - rois[:, :2], axis=1))
+        level = self.xp.floor(self.xp.log2(
+            size / self._canonical_scale + 1e-6)).astype(np.int32)
+        # skip last level
+        level = self.xp.clip(
+            level + len(self._scales) // 2, 0, len(self._scales) - 2)
+
         locs = []
         confs = []
         for l, h in enumerate(hs):
-            if len(rois[l]) == 0:
+            mask = level == l
+
+            if mask.sum() == 0:
                 locs.append(chainer.Variable(
                     self.xp.empty((0, self._n_class, 4), dtype=np.float32)))
                 confs.append(chainer.Variable(
                     self.xp.empty((0, self._n_class), dtype=np.float32)))
                 continue
 
+            roi = rois[mask]
+            roi_index = roi_indices[mask]
+
             roi_iltrb = self.xp.hstack(
-                (roi_indices[l][:, None], rois[l][:, [1, 0, 3, 2]])) \
+                (roi_index[:, None], roi[:, [1, 0, 3, 2]])) \
                 .astype(np.float32)
             h = roi_align_2d(
                 h, roi_iltrb,
@@ -65,6 +78,8 @@ class Head(chainer.Chain):
             conf = self.conf(h)
             confs.append(conf)
 
+        locs = F.concat(locs, axis=0)
+        confs = F.concat(confs, axis=0)
         return locs, confs
 
     def decode(self, rois, roi_indices, locs, confs,
@@ -73,40 +88,30 @@ class Head(chainer.Chain):
         labels = []
         scores = []
         for i in range(len(scales)):
-            bbox = []
-            score = []
-            for l in range(len(self._scales) - 1):
-                mask = roi_indices[l] == i
-                roi_l = rois[l][mask]
-                loc_l = locs[l].array[mask]
-                conf_l = confs[l].array[mask]
+            mask = roi_indices == i
+            roi = rois[mask]
+            loc = locs.array[mask]
+            conf = confs.array[mask]
 
-                bbox_l = self.xp.broadcast_to(
-                    roi_l[:, None], loc_l.shape) / scales[i]
-                # tlbr -> yxhw
-                bbox_l[:, :, 2:] -= bbox_l[:, :, :2]
-                bbox_l[:, :, :2] += bbox_l[:, :, 2:] / 2
-                # offset
-                bbox_l[:, :, :2] += loc_l[:, :, :2] * \
-                    bbox_l[:, :, 2:] * self._std[0]
-                bbox_l[:, :, 2:] *= self.xp.exp(
-                    self.xp.minimum(loc_l[:, :, 2:] * self._std[1], exp_clip))
-                # yxhw -> tlbr
-                bbox_l[:, :, :2] -= bbox_l[:, :, 2:] / 2
-                bbox_l[:, :, 2:] += bbox_l[:, :, :2]
-                # clip
-                bbox_l[:, :, :2] = self.xp.maximum(bbox_l[:, :, :2], 0)
-                bbox_l[:, :, 2:] = self.xp.minimum(
-                    bbox_l[:, :, 2:], self.xp.array(sizes[i]))
+            bbox = self.xp.broadcast_to(roi[:, None], loc.shape) / scales[i]
+            # tlbr -> yxhw
+            bbox[:, :, 2:] -= bbox[:, :, :2]
+            bbox[:, :, :2] += bbox[:, :, 2:] / 2
+            # offset
+            bbox[:, :, :2] += loc[:, :, :2] * bbox[:, :, 2:] * self._std[0]
+            bbox[:, :, 2:] *= self.xp.exp(
+                self.xp.minimum(loc[:, :, 2:] * self._std[1], exp_clip))
+            # yxhw -> tlbr
+            bbox[:, :, :2] -= bbox[:, :, 2:] / 2
+            bbox[:, :, 2:] += bbox[:, :, :2]
+            # clip
+            bbox[:, :, :2] = self.xp.maximum(bbox[:, :, :2], 0)
+            bbox[:, :, 2:] = self.xp.minimum(
+                bbox[:, :, 2:], self.xp.array(sizes[i]))
 
-                conf_l = self.xp.exp(conf_l)
-                score_l = conf_l / self.xp.sum(conf_l, axis=1, keepdims=True)
+            conf = self.xp.exp(conf)
+            score = conf / self.xp.sum(conf, axis=1, keepdims=True)
 
-                bbox.append(bbox_l)
-                score.append(score_l)
-
-            bbox = self.xp.vstack(bbox)
-            score = self.xp.vstack(score)
             bbox, label, score = _suppress(
                 bbox, score, nms_thresh, score_thresh)
 
