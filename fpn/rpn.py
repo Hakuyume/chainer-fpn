@@ -57,6 +57,9 @@ class RPN(chainer.Chain):
             anchor = np.stack((u, v, h, w)).reshape((4, -1)).transpose()
             anchor[:, :2] = (anchor[:, :2] + 0.5) / self._scales[l]
             anchor[:, 2:] *= (self._anchor_size << l) * self._scales[l]
+            # yxhw -> tlbr
+            anchor[:, :2] -= anchor[:, 2:] / 2
+            anchor[:, 2:] += anchor[:, :2]
             anchors.append(self.xp.array(anchor))
 
         return anchors
@@ -74,9 +77,14 @@ class RPN(chainer.Chain):
                 conf_l = confs[l].array[i].reshape(-1)
 
                 roi_l = anchors[l].copy()
+                # tlbr -> yxhw
+                roi_l[:, 2:] -= roi_l[:, :2]
+                roi_l[:, :2] += roi_l[:, 2:] / 2
+                # offset
                 roi_l[:, :2] += loc_l[:, :2] * roi_l[:, 2:]
                 roi_l[:, 2:] *= self.xp.exp(
                     self.xp.minimum(loc_l[:, 2:], exp_clip))
+                # yxhw -> tlbr
                 roi_l[:, :2] -= roi_l[:, 2:] / 2
                 roi_l[:, 2:] += roi_l[:, :2]
 
