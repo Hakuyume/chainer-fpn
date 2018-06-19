@@ -40,11 +40,12 @@ class RPN(chainer.Chain):
 
             loc = self.loc(h)
             loc = F.transpose(loc, (0, 2, 3, 1))
-            loc = F.reshape(loc, loc.shape[:3] + (-1, 4))
+            loc = F.reshape(loc, (loc.shape[0], -1, 4))
             locs.append(loc)
 
             conf = self.conf(h)
             conf = F.transpose(conf, (0, 2, 3, 1))
+            conf = F.reshape(conf, (conf.shape[0], -1))
             confs.append(conf)
 
         return locs, confs
@@ -66,7 +67,7 @@ class RPN(chainer.Chain):
 
         return anchors
 
-    def decode(self, locs, confs, in_shape):
+    def decode(self, locs, confs, anchors, in_shape):
         if chainer.config.train:
             nms_limit_pre = self._train_nms_limit_pre
             nms_limit_post = self._train_nms_limit_post
@@ -74,16 +75,14 @@ class RPN(chainer.Chain):
             nms_limit_pre = self._test_nms_limit_pre
             nms_limit_post = self._test_nms_limit_post
 
-        anchors = self.anchors(loc.shape[1:3] for loc in locs)
-
         rois = [[] for _ in self._scales]
         roi_indices = [[] for _ in self._scales]
         for i in range(in_shape[0]):
             roi = []
             conf = []
             for l in range(len(self._scales)):
-                loc_l = locs[l].array[i].reshape((-1, 4))
-                conf_l = confs[l].array[i].reshape(-1)
+                loc_l = locs[l].array[i]
+                conf_l = confs[l].array[i]
 
                 roi_l = anchors[l].copy()
                 # tlbr -> yxhw
