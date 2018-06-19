@@ -99,7 +99,7 @@ def main():
         elif re.fullmatch(r'.+/loc/[Wb]', new_name):
             value = value.reshape((-1, 4) + value.shape[1:])[:, [1, 0, 3, 2]] \
                 .reshape(value.shape)
-            print(name, '->', new_name, '(xy -> yx)')
+            print(name, '->', new_name, '(xywh -> yxhw)')
         else:
             print(name, '->', new_name)
 
