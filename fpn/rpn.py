@@ -47,10 +47,9 @@ class RPN(chainer.Chain):
 
         return locs, confs
 
-    def decode(self, locs, confs, x_shape):
+    def anchors(self, sizes):
         anchors = []
-        for l, loc in enumerate(locs):
-            _, H, W, _, _ = loc.shape
+        for l, (H, W) in enumerate(sizes):
             v, u, ar = np.meshgrid(
                 np.arange(W), np.arange(H), self._anchor_ratios)
             w = np.round(1 / np.sqrt(ar) / self._scales[l])
@@ -59,6 +58,11 @@ class RPN(chainer.Chain):
             anchor[:, :2] = (anchor[:, :2] + 0.5) / self._scales[l]
             anchor[:, 2:] *= (self._anchor_size << l) * self._scales[l]
             anchors.append(self.xp.array(anchor))
+
+        return anchors
+
+    def decode(self, locs, confs, x_shape):
+        anchors = self.anchors(loc.shape[1:3] for loc in locs)
 
         rois = [[] for _ in self._scales]
         roi_indices = [[] for _ in self._scales]
