@@ -38,6 +38,7 @@ class FasterRCNN(chainer.Chain):
         anchors = self.rpn.anchors(h.shape[2:] for h in hs)
         rois, roi_indices = self.rpn.decode(
             rpn_locs, rpn_confs, anchors, x.shape)
+        rois, roi_indices = self.head.split(rois, roi_indices)
         locs, confs = self.head(hs, rois, roi_indices)
         return rois, roi_indices, locs, confs
 

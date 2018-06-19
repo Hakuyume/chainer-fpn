@@ -37,30 +37,18 @@ class Head(chainer.Chain):
         self._scales = scales
 
     def __call__(self, hs, rois, roi_indices):
-        size = self.xp.sqrt(self.xp.prod(rois[:, 2:] - rois[:, :2], axis=1))
-        level = self.xp.floor(self.xp.log2(
-            size / self._canonical_scale + 1e-6)).astype(np.int32)
-        # skip last level
-        level = self.xp.clip(
-            level + len(self._scales) // 2, 0, len(self._scales) - 2)
-
         locs = []
         confs = []
         for l, h in enumerate(hs):
-            mask = level == l
-
-            if mask.sum() == 0:
+            if len(rois[l]) == 0:
                 locs.append(chainer.Variable(
                     self.xp.empty((0, self._n_class, 4), dtype=np.float32)))
                 confs.append(chainer.Variable(
                     self.xp.empty((0, self._n_class), dtype=np.float32)))
                 continue
 
-            roi = rois[mask]
-            roi_index = roi_indices[mask]
-
             roi_iltrb = self.xp.hstack(
-                (roi_index[:, None], roi[:, [1, 0, 3, 2]])) \
+                (roi_indices[l][:, None], rois[l][:, [1, 0, 3, 2]])) \
                 .astype(np.float32)
             h = roi_align_2d(
                 h, roi_iltrb,
@@ -78,20 +66,37 @@ class Head(chainer.Chain):
             conf = self.conf(h)
             confs.append(conf)
 
-        locs = F.concat(locs, axis=0)
-        confs = F.concat(confs, axis=0)
         return locs, confs
+
+    def split(self, rois, roi_indices):
+        size = self.xp.sqrt(self.xp.prod(rois[:, 2:] - rois[:, :2], axis=1))
+        level = self.xp.floor(self.xp.log2(
+            size / self._canonical_scale + 1e-6)).astype(np.int32)
+        # skip last level
+        level = self.xp.clip(
+            level + len(self._scales) // 2, 0, len(self._scales) - 2)
+
+        masks = [level == l for l in range(len(self._scales))]
+        rois = [rois[mask] for mask in masks]
+        roi_indices = [roi_indices[mask] for mask in masks]
+
+        return rois, roi_indices
 
     def decode(self, rois, roi_indices, locs, confs,
                scales, sizes, nms_thresh, score_thresh):
+        rois = self.xp.vstack(rois)
+        roi_indices = self.xp.hstack(roi_indices)
+        locs = self.xp.vstack([loc.array for loc in locs])
+        confs = self.xp.vstack([conf.array for conf in confs])
+
         bboxes = []
         labels = []
         scores = []
         for i in range(len(scales)):
             mask = roi_indices == i
             roi = rois[mask]
-            loc = locs.array[mask]
-            conf = confs.array[mask]
+            loc = locs[mask]
+            conf = confs[mask]
 
             bbox = self.xp.broadcast_to(roi[:, None], loc.shape) / scales[i]
             # tlbr -> yxhw
