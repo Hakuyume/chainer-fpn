@@ -66,7 +66,7 @@ class RPN(chainer.Chain):
 
         return anchors
 
-    def decode(self, locs, confs, x_shape):
+    def decode(self, locs, confs, in_shape):
         if chainer.config.train:
             nms_limit_pre = self._train_nms_limit_pre
             nms_limit_post = self._train_nms_limit_post
@@ -78,7 +78,7 @@ class RPN(chainer.Chain):
 
         rois = [[] for _ in self._scales]
         roi_indices = [[] for _ in self._scales]
-        for i in range(x_shape[0]):
+        for i in range(in_shape[0]):
             roi = []
             conf = []
             for l in range(len(self._scales)):
@@ -99,7 +99,7 @@ class RPN(chainer.Chain):
                 # clip
                 roi_l[:, :2] = self.xp.maximum(roi_l[:, :2], 0)
                 roi_l[:, 2:] = self.xp.minimum(
-                    roi_l[:, 2:], self.xp.array(x_shape[2:]))
+                    roi_l[:, 2:], self.xp.array(in_shape[2:]))
 
                 order = self.xp.argsort(-conf_l)[:nms_limit_pre]
                 roi_l = roi_l[order]
