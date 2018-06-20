@@ -40,17 +40,18 @@ class FasterRCNN(chainer.Chain):
         rois, roi_indices = self.rpn.decode(
             rpn_locs, rpn_confs, anchors, x.shape)
         rois, roi_indices = self.head.split(rois, roi_indices)
-        locs, confs = self.head(hs, rois, roi_indices)
-        return rpn_locs, rpn_confs, anchors, rois, roi_indices, locs, confs
+        head_locs, head_confs = self.head(hs, rois, roi_indices)
+        return rpn_locs, rpn_confs, anchors, rois, roi_indices, \
+            head_locs, head_confs
 
     def predict(self, imgs):
         sizes = [img.shape[1:] for img in imgs]
         x, scales = self.prepare(imgs)
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            _, _, _, rois, roi_indices, locs, confs = self(x)
+            _, _, _, rois, roi_indices, head_locs, head_confs = self(x)
         bboxes, labels, scores = self.head.decode(
-            rois, roi_indices, locs, confs,
+            rois, roi_indices, head_locs, head_confs,
             scales, sizes, self.nms_thresh, self.score_thresh)
 
         bboxes = [cuda.to_cpu(bbox) for bbox in bboxes]
