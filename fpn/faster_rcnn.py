@@ -32,7 +32,9 @@ class FasterRCNN(chainer.Chain):
             raise ValueError('preset must be visualize or evaluate')
 
     def __call__(self, x):
-        hs = self.extractor(x)
+        with chainer.using_config('train', False):
+            hs = self.extractor(x)
+
         rpn_locs, rpn_confs = self.rpn(hs)
         anchors = self.rpn.anchors(h.shape[2:] for h in hs)
         rois, roi_indices = self.rpn.decode(
