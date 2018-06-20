@@ -62,7 +62,7 @@ class RPN(chainer.Chain):
             # yxhw -> tlbr
             anchor[:, :2] -= anchor[:, 2:] / 2
             anchor[:, 2:] += anchor[:, :2]
-            anchors.append(self.xp.array(anchor))
+            anchors.append(self.xp.array(anchor, dtype=np.float32))
 
         return anchors
 
