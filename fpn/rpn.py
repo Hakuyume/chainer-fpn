@@ -1,6 +1,7 @@
 import numpy as np
 
 import chainer
+from chainer.backends import cuda
 import chainer.functions as F
 from chainer import initializers
 import chainer.links as L
@@ -127,3 +128,75 @@ class RPN(chainer.Chain):
         rois = self.xp.vstack(rois).astype(np.float32)
         roi_indices = self.xp.hstack(roi_indices).astype(np.int32)
         return rois, roi_indices
+
+
+def rpn_loss(locs, confs, anchors, sizes,  bboxes):
+    fg_thresh = 0.7
+    bg_thresh = 0.3
+    batchsize_per_image = 256
+    fg_ratio = 0.25
+
+    xp = cuda.get_array_module(locs.array, confs.array)
+
+    locs = F.concat(locs)
+    confs = F.concat(confs)
+    anchors = xp.vstack(anchors)
+    anchor_yx = (anchors[:, 2:] + anchors[:, :2]) / 2
+    anchor_hw = anchors[:, 2:] - anchors[:, :2]
+
+    n_sample = 0
+    loc_loss = 0
+    conf_loss = 0
+    for i in range(len(sizes)):
+        if len(bboxes[i]) > 0:
+            iou = utils.bbox_iou(anchors, bboxes[i])
+
+            gt_loc = bboxes[i][iou.argmax(axis=1)].copy()
+            # tlbr -> yxhw
+            gt_loc[:, 2:] -= gt_loc[:, :2]
+            gt_loc[:, :2] += gt_loc[:, 2:] / 2
+            # offset
+            gt_loc[:, :2] = (gt_loc[:, :2] - anchor_yx) / anchor_hw
+            gt_loc[:, 2:] = xp.log(gt_loc[:, 2:] / anchor_hw)
+        else:
+            gt_loc = xp.empty_like(anchors)
+
+        gt_label = xp.empty(len(anchors), dtype=np.int32)
+        gt_label[:] = -1
+
+        mask = xp.logical_and(
+            anchors[:, :2] >= 0,
+            anchors[:, 2:] < xp.array(sizes[i])).all(axis=1)
+
+        if len(bboxes[i]) > 0:
+            gt_label[mask][iou[mask].argmax(axis=0)] = 1
+            gt_label[xp.logical_and(mask, iou.max(axis=1) >= fg_thresh)] = 1
+
+        fg_index = xp.where(gt_label == 1)[0]
+        n_fg = int(batchsize_per_image * fg_ratio)
+        if len(fg_index) > n_fg:
+            gt_label[xp.random.choice(
+                fg_index, size=len(fg_index) - n_fg, replace=False)] = -1
+
+        if len(bboxes[i]) > 0:
+            bg_index = xp.where(xp.logical_and(
+                mask, iou.max(axis=1) < bg_thresh))[0]
+        else:
+            bg_index = xp.where(mask)[0]
+            n_bg = batchsize_per_image - (gt_label == 1).sum()
+        if len(bg_index) > n_bg:
+            gt_label[bg_index[
+                xp.random.randint(len(bg_index), size=n_bg)]] = 0
+
+        n_sample += (gt_label >= 0).sum()
+        loc_loss += F.sum(F.huber_loss(
+            locs[i][gt_label == 1], gt_loc[gt_label == 1], 1,
+            reduce='no'))
+        conf_loss += F.sum(F.sigmoid_cross_entropy(
+            confs[i][gt_label >= 0], gt_label[gt_label >= 0],
+            reduce='no'))
+
+        loc_loss /= n_sample
+        conf_loss /= n_sample
+
+        return loc_loss, conf_loss
