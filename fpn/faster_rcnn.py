@@ -32,7 +32,6 @@ class FasterRCNN(chainer.Chain):
             raise ValueError('preset must be visualize or evaluate')
 
     def __call__(self, x):
-        assert(not chainer.config.train)
         hs = self.extractor(x)
         rpn_locs, rpn_confs = self.rpn(hs)
         anchors = self.rpn.anchors(h.shape[2:] for h in hs)
@@ -40,14 +39,14 @@ class FasterRCNN(chainer.Chain):
             rpn_locs, rpn_confs, anchors, x.shape)
         rois, roi_indices = self.head.split(rois, roi_indices)
         locs, confs = self.head(hs, rois, roi_indices)
-        return rois, roi_indices, locs, confs
+        return rpn_locs, rpn_confs, anchors, rois, roi_indices, locs, confs
 
     def predict(self, imgs):
         sizes = [img.shape[1:] for img in imgs]
         x, scales = self.prepare(imgs)
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            rois, roi_indices, locs, confs = self(x)
+            _, _, _, rois, roi_indices, locs, confs = self(x)
         bboxes, labels, scores = self.head.decode(
             rois, roi_indices, locs, confs,
             scales, sizes, self.nms_thresh, self.score_thresh)
