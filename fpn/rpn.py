@@ -136,10 +136,11 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
     batchsize_per_image = 256
     fg_ratio = 0.25
 
-    xp = cuda.get_array_module(locs.array, confs.array)
-
     locs = F.concat(locs)
     confs = F.concat(confs)
+
+    xp = cuda.get_array_module(locs.array, confs.array)
+
     anchors = xp.vstack(anchors)
     anchor_yx = (anchors[:, 2:] + anchors[:, :2]) / 2
     anchor_hw = anchors[:, 2:] - anchors[:, :2]
