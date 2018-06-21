@@ -172,8 +172,8 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
 
     xp = cuda.get_array_module(locs.array, confs.array)
 
-    rois = xp.vstack(rois)
-    roi_indices = xp.hstack(roi_indices)
+    rois = xp.vstack(rois).astype(np.float32)
+    roi_indices = xp.hstack(roi_indices).astype(np.int32)
 
     rois_yx = (rois[:, 2:] + rois[:, :2]) / 2
     rois_hw = rois[:, 2:] - rois[:, :2]
