@@ -17,7 +17,7 @@ class Head(chainer.Chain):
     _canonical_scale = 224
     _roi_size = 7
     _roi_sample_ratio = 2
-    _std = (0.1, 0.2)
+    std = (0.1, 0.2)
 
     def __init__(self, n_class, scales):
         super().__init__()
@@ -103,9 +103,9 @@ class Head(chainer.Chain):
             bbox[:, :, 2:] -= bbox[:, :, :2]
             bbox[:, :, :2] += bbox[:, :, 2:] / 2
             # offset
-            bbox[:, :, :2] += loc[:, :, :2] * bbox[:, :, 2:] * self._std[0]
+            bbox[:, :, :2] += loc[:, :, :2] * bbox[:, :, 2:] * self.std[0]
             bbox[:, :, 2:] *= self.xp.exp(
-                self.xp.minimum(loc[:, :, 2:] * self._std[1], exp_clip))
+                self.xp.minimum(loc[:, :, 2:] * self.std[1], exp_clip))
             # yxhw -> tlbr
             bbox[:, :, :2] -= bbox[:, :, 2:] / 2
             bbox[:, :, 2:] += bbox[:, :, :2]
@@ -160,3 +160,67 @@ def _suppress(raw_bbox, raw_score, nms_thresh, score_thresh):
     label = xp.hstack(label).astype(np.int32)
     score = xp.hstack(score).astype(np.float32)
     return bbox, label, score
+
+
+def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
+    thresh = 0.5
+    batchsize_per_image = 512
+    fg_ratio = 0.25
+
+    locs = F.concat(locs, axis=0)
+    confs = F.concat(confs, axis=0)
+
+    xp = cuda.get_array_module(locs.array, confs.array)
+
+    rois = xp.vstack(rois)
+    roi_indices = xp.hstack(roi_indices)
+
+    rois_yx = (rois[:, 2:] + rois[:, :2]) / 2
+    rois_hw = rois[:, 2:] - rois[:, :2]
+
+    loc_loss = 0
+    conf_loss = 0
+    for i in xp.unique(roi_indices):
+        mask = roi_indices = i
+
+        if len(bboxes[i]) > 0:
+            iou = utils.bbox_iou(rois[mask], bboxes[i])
+            gt_index = iou.argmax(axis=1)
+
+            gt_loc = bboxes[i][gt_index].copy()
+        else:
+            gt_loc = xp.empty_like(rois[mask])
+        # tlbr -> yxhw
+        gt_loc[:, 2:] -= gt_loc[:, :2]
+        gt_loc[:, :2] += gt_loc[:, 2:] / 2
+        # offset
+        gt_loc[:, :2] = (gt_loc[:, :2] - rois_yx[mask]) / \
+            rois_hw[mask] / std[0]
+        gt_loc[:, 2:] = xp.log(gt_loc[:, 2:] / rois_hw[mask]) / std[1]
+
+        if len(bboxes[i]) > 0:
+            gt_label = labels[i][gt_index] + 1
+            gt_label[iou.max(axis=1) < thresh] = 0
+        else:
+            gt_label = xp.zeros(mask.sum(), dtype=np.int32)
+
+        fg_index = xp.where(gt_label > 0)[0]
+        n_fg = int(batchsize_per_image * fg_ratio)
+        if len(fg_index) > n_fg:
+            gt_label[xp.random.choice(
+                fg_index, size=len(fg_index) - n_fg, replace=False)] = -1
+
+        bg_index = xp.where(gt_label == 0)[0]
+        n_bg = batchsize_per_image - (gt_label > 0).sum()
+        if len(bg_index) > n_bg:
+            gt_label[xp.random.choice(
+                bg_index, size=len(bg_index) - n_bg, replace=False)] = -1
+
+        n_sample = (gt_label >= 0).sum()
+        loc_loss += F.sum(F.huber_loss(
+            locs[mask][gt_label > 0], gt_loc[gt_label > 0], 1,
+            reduce='no')) / n_sample
+        conf_loss += F.softmax_cross_entropy(
+            confs[mask][gt_label >= 0], gt_label[gt_label >= 0])
+
+    return loc_loss, conf_loss

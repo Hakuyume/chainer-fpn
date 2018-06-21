@@ -145,7 +145,6 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
     anchors_yx = (anchors[:, 2:] + anchors[:, :2]) / 2
     anchors_hw = anchors[:, 2:] - anchors[:, :2]
 
-    n_sample = 0
     loc_loss = 0
     conf_loss = 0
     for i in range(len(sizes)):
