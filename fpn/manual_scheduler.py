@@ -5,7 +5,7 @@ class ManualScheduler(extension.Extension):
 
     def __init__(self, attr, func, optimizer=None):
         self._attr = attr
-        self._rate = func
+        self._func = func
         self._optimizer = optimizer
 
     def initialize(self, trainer):
