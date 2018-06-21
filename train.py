@@ -146,7 +146,7 @@ def main():
         trigger=triggers.ManualScheduleTrigger([60000, 80000], 'iteration'))
 
     if comm.rank == 0:
-        log_interval = 1, 'iteration'
+        log_interval = 10, 'iteration'
         trainer.extend(extensions.LogReport(trigger=log_interval))
         trainer.extend(extensions.observe_lr(), trigger=log_interval)
         trainer.extend(extensions.PrintReport(
@@ -154,7 +154,7 @@ def main():
              'main/loss/rpn/loc', 'main/loss/rpn/conf',
              'main/loss/head/loc', 'main/loss/head/conf']),
             trigger=log_interval)
-        trainer.extend(extensions.ProgressBar(update_interval=1))
+        trainer.extend(extensions.ProgressBar(update_interval=10))
 
         trainer.extend(extensions.snapshot(), trigger=(10000, 'iteration'))
         trainer.extend(
