@@ -22,10 +22,10 @@ $ python3 caffe22npz.py e2e_faster_rcnn_R-50-FPN_1x.pkl faster_rcnn_fpn_resnet50
 
 3. Run inference.
 ```
-$ python3 demo.py [--gpu <gpu>] --model resnet50 faster_rcnn_fpn_resnet50_coco.npz <image>
+$ python3 demo.py [--gpu <gpu>] --model resnet50 --pretrained-model faster_rcnn_fpn_resnet50_coco.npz <image>
 ```
 
 ## Evaluation
 ```
-$ python3 eval_coco.py [--gpu <gpu>] --model resnet50 faster_rcnn_fpn_resnet50_coco.npz
+$ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --pretrained-model faster_rcnn_fpn_resnet50_coco.npz
 ```

@@ -17,14 +17,21 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', type=int, default=-1)
     parser.add_argument('--model', choices=('resnet50', 'resnet101'))
-    parser.add_argument('pretrained_model')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--pretrained-model')
+    group.add_argument('--snapshot')
     args = parser.parse_args()
 
     if args.model == 'resnet50':
         model = FasterRCNNFPNResNet50(n_fg_class=len(coco_bbox_label_names))
     elif args.model == 'resnet101':
         model = FasterRCNNFPNResNet101(n_fg_class=len(coco_bbox_label_names))
-    chainer.serializers.load_npz(args.pretrained_model, model)
+
+    if args.pretrained_model:
+        chainer.serializers.load_npz(args.pretrained_model, model)
+    elif args.snapshot:
+        chainer.serializers.load_npz(
+            args.pretrained_model, model, path='updater/model:main/model/')
 
     if args.gpu >= 0:
         chainer.cuda.get_device_from_id(args.gpu).use()
