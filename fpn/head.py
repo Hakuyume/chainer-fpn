@@ -218,8 +218,8 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
 
         n_sample = (gt_label >= 0).sum()
         loc_loss += F.sum(F.huber_loss(
-            locs[mask][gt_label > 0], gt_loc[gt_label > 0], 1,
-            reduce='no')) / n_sample
+            locs[mask][xp.where(gt_label > 0)[0], gt_label[gt_label > 0]],
+            gt_loc[gt_label > 0], 1, reduce='no')) / n_sample
         conf_loss += F.softmax_cross_entropy(
             confs[mask][gt_label >= 0], gt_label[gt_label >= 0])
 
