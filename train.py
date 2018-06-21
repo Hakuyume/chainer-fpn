@@ -171,10 +171,6 @@ def main():
         trainer.extend(extensions.ProgressBar(update_interval=10))
 
         trainer.extend(extensions.snapshot(), trigger=(10000, 'iteration'))
-        trainer.extend(
-            extensions.snapshot_object(
-                model, 'model_iter_{.updater.iteration}'),
-            trigger=(90000, 'iteration'))
 
     trainer.run()
 
