@@ -7,7 +7,6 @@ from chainer.optimizer_hooks import WeightDecay
 from chainer import serializers
 from chainer import training
 from chainer.training import extensions
-from chainer.training import triggers
 
 import chainermn
 
@@ -21,6 +20,7 @@ from chainercv import transforms
 from fpn import head_loss
 from fpn import FasterRCNNFPNResNet101
 from fpn import FasterRCNNFPNResNet50
+from fpn import ManualScheduler
 from fpn import rpn_loss
 
 
@@ -141,9 +141,19 @@ def main():
     updater = training.updaters.StandardUpdater(
         train_iter, optimizer, converter=converter, device=device)
     trainer = training.Trainer(updater, (90000, 'iteration'), args.out)
-    trainer.extend(
-        extensions.ExponentialShift('lr', 0.1, init=0.01),
-        trigger=triggers.ManualScheduleTrigger([60000, 80000], 'iteration'))
+
+    def lr_schedule(updater):
+        iteration = updater.iteration
+        if iteration < 500:
+            return 1e-3 + (1e-2 - 1e-3) / 500 * iteration
+        elif iteration < 60000:
+            return 1e-2
+        elif iteration < 80000:
+            return 1e-3
+        else:
+            return 1e-4
+
+    trainer.extend(ManualScheduler('lr', lr_schedule))
 
     if comm.rank == 0:
         log_interval = 10, 'iteration'
