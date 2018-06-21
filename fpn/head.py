@@ -202,7 +202,7 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
             gt_label = labels[i][gt_index] + 1
             gt_label[iou.max(axis=1) < thresh] = 0
         else:
-            gt_label = xp.zeros(mask.sum(), dtype=np.int32)
+            gt_label = xp.zeros((cuda.to_cpu(mask.sum()),), dtype=np.int32)
 
         fg_index = xp.where(gt_label > 0)[0]
         n_fg = int(batchsize_per_image * fg_ratio)
@@ -217,10 +217,9 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
                 bg_index, size=len(bg_index) - n_bg, replace=False)] = -1
 
         n_sample = (gt_label >= 0).sum()
-        if (gt_label > 0).sum() > 0:
-            loc_loss += F.sum(F.huber_loss(
-                locs[mask][xp.where(gt_label > 0)[0], gt_label[gt_label > 0]],
-                gt_loc[gt_label > 0], 1, reduce='no')) / n_sample
+        loc_loss += F.sum(F.huber_loss(
+            locs[mask][xp.where(gt_label > 0)[0], gt_label[gt_label > 0]],
+            gt_loc[gt_label > 0], 1, reduce='no')) / n_sample
         conf_loss += F.softmax_cross_entropy(confs[mask], gt_label)
 
     return loc_loss, conf_loss
