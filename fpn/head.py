@@ -181,7 +181,7 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
     loc_loss = 0
     conf_loss = 0
     for i in np.unique(cuda.to_cpu(roi_indices)):
-        mask = roi_indices = i
+        mask = roi_indices == i
 
         if len(bboxes[i]) > 0:
             iou = utils.bbox_iou(rois[mask], bboxes[i])
