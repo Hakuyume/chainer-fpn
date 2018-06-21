@@ -100,7 +100,7 @@ class RPN(chainer.Chain):
                 roi_l[:, 2:] = self.xp.minimum(
                     roi_l[:, 2:], self.xp.array(in_shape[2:]))
 
-                order = self.xp.argsort(-conf_l)[:nms_limit_pre]
+                order = _argsort(-conf_l)[:nms_limit_pre]
                 roi_l = roi_l[order]
                 conf_l = conf_l[order]
 
@@ -119,7 +119,7 @@ class RPN(chainer.Chain):
             roi = self.xp.vstack(roi).astype(np.float32)
             conf = self.xp.hstack(conf).astype(np.float32)
 
-            order = self.xp.argsort(-conf)[:nms_limit_post]
+            order = _argsort(-conf)[:nms_limit_post]
             roi = roi[order]
 
             rois.append(roi)
@@ -201,3 +201,13 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
     conf_loss /= n_sample
 
     return loc_loss, conf_loss
+
+
+# to avoid out of memory
+def _argsort(x):
+    xp = cuda.get_array_module(x)
+    i = np.argsort(cuda.to_cpu(x))
+    if xp is np:
+        return i
+    else:
+        return cuda.to_gpu(i)
