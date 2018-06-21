@@ -189,16 +189,13 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
             gt_label[bg_index[
                 xp.random.randint(len(bg_index), size=n_bg)]] = 0
 
-        n_sample += (gt_label >= 0).sum()
+        n_sample = (gt_label >= 0).sum()
         loc_loss += F.sum(F.huber_loss(
             locs[i][gt_label == 1], gt_loc[gt_label == 1], 1,
-            reduce='no'))
+            reduce='no')) / n_sample
         conf_loss += F.sum(F.sigmoid_cross_entropy(
             confs[i][gt_label >= 0], gt_label[gt_label >= 0],
-            reduce='no'))
-
-    loc_loss /= n_sample
-    conf_loss /= n_sample
+            reduce='no')) / n_sample
 
     return loc_loss, conf_loss
 
