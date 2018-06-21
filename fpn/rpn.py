@@ -142,8 +142,8 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
     xp = cuda.get_array_module(locs.array, confs.array)
 
     anchors = xp.vstack(anchors)
-    anchor_yx = (anchors[:, 2:] + anchors[:, :2]) / 2
-    anchor_hw = anchors[:, 2:] - anchors[:, :2]
+    anchors_yx = (anchors[:, 2:] + anchors[:, :2]) / 2
+    anchors_hw = anchors[:, 2:] - anchors[:, :2]
 
     n_sample = 0
     loc_loss = 0
@@ -157,8 +157,8 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
             gt_loc[:, 2:] -= gt_loc[:, :2]
             gt_loc[:, :2] += gt_loc[:, 2:] / 2
             # offset
-            gt_loc[:, :2] = (gt_loc[:, :2] - anchor_yx) / anchor_hw
-            gt_loc[:, 2:] = xp.log(gt_loc[:, 2:] / anchor_hw)
+            gt_loc[:, :2] = (gt_loc[:, :2] - anchors_yx) / anchors_hw
+            gt_loc[:, 2:] = xp.log(gt_loc[:, 2:] / anchors_hw)
         else:
             gt_loc = xp.empty_like(anchors)
 
