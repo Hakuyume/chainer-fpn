@@ -143,15 +143,19 @@ def main():
     trainer = training.Trainer(updater, (90000, 'iteration'), args.out)
 
     def lr_schedule(updater):
+        base_lr = 0.02 / (2 * 8)
+
         iteration = updater.iteration
         if iteration < 500:
-            return 1e-3 + (1e-2 - 1e-3) / 500 * iteration
+            rate = 0.1 + (1 - 0.1) / 500 * iteration
         elif iteration < 60000:
-            return 1e-2
+            rate = 1
         elif iteration < 80000:
-            return 1e-3
+            rate = 0.1
         else:
-            return 1e-4
+            rate = 0.01
+
+        return base_lr * rate
 
     trainer.extend(ManualScheduler('lr', lr_schedule))
 
