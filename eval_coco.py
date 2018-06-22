@@ -31,7 +31,7 @@ def main():
         chainer.serializers.load_npz(args.pretrained_model, model)
     elif args.snapshot:
         chainer.serializers.load_npz(
-            args.pretrained_model, model, path='updater/model:main/model/')
+            args.snapshot, model, path='updater/model:main/model/')
 
     if args.gpu >= 0:
         chainer.cuda.get_device_from_id(args.gpu).use()
