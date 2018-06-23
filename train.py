@@ -94,6 +94,7 @@ def main():
     parser.add_argument('--pretrained-model')
     parser.add_argument('--batchsize', type=int, default=2)
     parser.add_argument('--out', default='result')
+    parser.add_argument('--resume')
     args = parser.parse_args()
 
     comm = chainermn.create_communicator()
@@ -171,6 +172,9 @@ def main():
         trainer.extend(extensions.ProgressBar(update_interval=10))
 
         trainer.extend(extensions.snapshot(), trigger=(10000, 'iteration'))
+
+    if args.resume:
+        serializers.load_npz(args.resume, trainer)
 
     trainer.run()
 
