@@ -144,7 +144,7 @@ def main():
     trainer = training.Trainer(updater, (90000, 'iteration'), args.out)
 
     def lr_schedule(updater):
-        base_lr = 0.02 / (2 * 8)
+        base_lr = 0.02
 
         iteration = updater.iteration
         if iteration < 500:

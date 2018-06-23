@@ -10,6 +10,7 @@ from chainercv import utils
 
 from fpn import exp_clip
 from fpn.roi_align_2d import roi_align_2d
+from fpn.smooth_l1 import smooth_l1
 
 
 class Head(chainer.Chain):
@@ -177,10 +178,11 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
 
     rois_yx = (rois[:, 2:] + rois[:, :2]) / 2
     rois_hw = rois[:, 2:] - rois[:, :2]
+    indices = np.unique(cuda.to_cpu(roi_indices))
 
     loc_loss = 0
     conf_loss = 0
-    for i in np.unique(cuda.to_cpu(roi_indices)):
+    for i in indices:
         mask = roi_indices == i
 
         if len(bboxes[i]) > 0:
@@ -217,9 +219,12 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
                 bg_index, size=len(bg_index) - n_bg, replace=False)] = -1
 
         n_sample = (gt_label >= 0).sum()
-        loc_loss += F.sum(F.huber_loss(
+        loc_loss += F.sum(smooth_l1(
             locs[mask][xp.where(gt_label > 0)[0], gt_label[gt_label > 0]],
-            gt_loc[gt_label > 0], 1, reduce='no')) / n_sample
+            gt_loc[gt_label > 0], 1)) / n_sample
         conf_loss += F.softmax_cross_entropy(confs[mask], gt_label)
+
+    loc_loss /= len(indices)
+    conf_loss /= len(indices)
 
     return loc_loss, conf_loss

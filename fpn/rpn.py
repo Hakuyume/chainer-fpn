@@ -9,6 +9,7 @@ import chainer.links as L
 from chainercv import utils
 
 from fpn import exp_clip
+from fpn.smooth_l1 import smooth_l1
 
 
 class RPN(chainer.Chain):
@@ -189,12 +190,14 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
                 xp.random.randint(len(bg_index), size=n_bg)]] = 0
 
         n_sample = (gt_label >= 0).sum()
-        loc_loss += F.sum(F.huber_loss(
-            locs[i][gt_label == 1], gt_loc[gt_label == 1], 1,
-            reduce='no')) / n_sample
+        loc_loss += F.sum(smooth_l1(
+            locs[i][gt_label == 1], gt_loc[gt_label == 1], 1 / 9)) / n_sample
         conf_loss += F.sum(F.sigmoid_cross_entropy(
-            confs[i][gt_label >= 0], gt_label[gt_label >= 0],
-            reduce='no')) / n_sample
+            confs[i][gt_label >= 0], gt_label[gt_label >= 0], reduce='no')) \
+            / n_sample
+
+        loc_loss /= len(sizes)
+        conf_loss /= len(sizes)
 
     return loc_loss, conf_loss
 

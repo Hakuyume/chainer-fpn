@@ -12,3 +12,4 @@ from fpn.manual_scheduler import ManualScheduler  # NOQA
 from fpn.roi_align_2d import roi_align_2d  # NOQA
 from fpn.rpn import RPN  # NOQA
 from fpn.rpn import rpn_loss  # NOQA
+from fpn.smooth_l1 import smooth_l1  # NOQA
