@@ -174,7 +174,7 @@ def main():
         trainer.extend(extensions.snapshot(), trigger=(10000, 'iteration'))
 
     if args.resume:
-        serializers.load_npz(args.resume, trainer)
+        serializers.load_npz(args.resume, trainer, strict=False)
 
     trainer.run()
 
