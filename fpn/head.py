@@ -213,7 +213,7 @@ def head_loss_pre(rois, roi_indices, std, bboxes, labels):
                 fg_index, size=len(fg_index) - n_fg, replace=False)] = -1
 
         bg_index = xp.where(gt_label == 0)[0]
-        n_bg = batchsize_per_image - (gt_label > 0).sum()
+        n_bg = batchsize_per_image - int((gt_label > 0).sum())
         if len(bg_index) > n_bg:
             gt_label[xp.random.choice(
                 bg_index, size=len(bg_index) - n_bg, replace=False)] = -1
