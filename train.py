@@ -17,7 +17,8 @@ from chainercv.datasets import coco_bbox_label_names
 from chainercv.datasets import COCOBboxDataset
 from chainercv import transforms
 
-from fpn import head_loss
+from fpn import head_loss_post
+from fpn import head_loss_pre
 from fpn import FasterRCNNFPNResNet101
 from fpn import FasterRCNNFPNResNet50
 from fpn import ManualScheduler
@@ -56,10 +57,11 @@ class TrainChain(chainer.Chain):
             + [self.xp.array((i,) * len(bbox))
                for i, bbox in enumerate(bboxes)])
         rois, roi_indices = self.model.head.distribute(rois, roi_indices)
+        rois, roi_indices, head_gt_locs, head_gt_labels = head_loss_pre(
+            rois, roi_indices, self.model.head.std, bboxes, labels)
         head_locs, head_confs = self.model.head(hs, rois, roi_indices)
-        head_loc_loss, head_conf_loss = head_loss(
-            head_locs, head_confs, rois, roi_indices,
-            self.model.head.std, bboxes, labels)
+        head_loc_loss, head_conf_loss = head_loss_post(
+            head_locs, head_confs, roi_indices, head_gt_locs, head_gt_labels)
 
         loss = rpn_loc_loss + rpn_conf_loss + head_loc_loss + head_conf_loss
         chainer.reporter.report({

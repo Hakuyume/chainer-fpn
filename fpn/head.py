@@ -163,16 +163,16 @@ def _suppress(raw_bbox, raw_score, nms_thresh, score_thresh):
     return bbox, label, score
 
 
-def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
+def head_loss_pre(rois, roi_indices, std, bboxes, labels):
     thresh = 0.5
     batchsize_per_image = 512
     fg_ratio = 0.25
 
-    locs = F.concat(locs, axis=0)
-    confs = F.concat(confs, axis=0)
+    xp = cuda.get_array_module(*rois)
 
-    xp = cuda.get_array_module(locs.array, confs.array)
-
+    n_level = len(rois)
+    roi_levels = xp.vstack(
+        xp.array((l,) * len(rois[l]) for l in range(n_level))).astype(np.int32)
     rois = xp.vstack(rois).astype(np.float32)
     roi_indices = xp.hstack(roi_indices).astype(np.int32)
 
@@ -180,8 +180,8 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
     rois_hw = rois[:, 2:] - rois[:, :2]
     indices = np.unique(cuda.to_cpu(roi_indices))
 
-    loc_loss = 0
-    conf_loss = 0
+    gt_locs = xp.empty_like(rois)
+    gt_labels = xp.empty_like(roi_indices)
     for i in indices:
         mask = roi_indices == i
 
@@ -218,10 +218,47 @@ def head_loss(locs, confs, rois, roi_indices, std, bboxes, labels):
             gt_label[xp.random.choice(
                 bg_index, size=len(bg_index) - n_bg, replace=False)] = -1
 
-        n_sample = (gt_label >= 0).sum()
+        gt_locs[mask] = gt_loc
+        gt_labels[mask] = gt_label
+
+    mask = gt_labels >= 0
+    rois = rois[mask]
+    roi_indices = roi_indices[mask]
+    roi_levels = roi_levels[mask]
+    gt_locs = gt_locs[mask]
+    gt_labels = gt_labels[mask]
+
+    masks = [roi_levels == l for l in range(n_level)]
+    rois = [rois[mask] for mask in masks]
+    roi_indices = [roi_indices[mask] for mask in masks]
+    gt_locs = [gt_locs[mask] for mask in masks]
+    gt_labels = [gt_labels[mask] for mask in masks]
+
+    return rois, roi_indices, gt_locs, gt_labels
+
+
+def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
+    locs = F.concat(locs, axis=0)
+    confs = F.concat(confs, axis=0)
+
+    xp = cuda.get_array_module(locs.array, confs.array)
+
+    gt_locs = xp.vstack(gt_locs).astype(np.float32)
+    gt_labels = xp.hstack(gt_labels).astype(np.int32)
+
+    indices = np.unique(cuda.to_cpu(roi_indices))
+
+    loc_loss = 0
+    conf_loss = 0
+    for i in indices:
+        mask = roi_indices == i
+        gt_loc = gt_locs[mask]
+        gt_label = gt_labels[mask]
+
+        n_sample = mask.sum()
         loc_loss += F.sum(smooth_l1(
-            locs[mask][xp.where(gt_label > 0)[0], gt_label[gt_label > 0]],
-            gt_loc[gt_label > 0], 1)) / n_sample
+            locs[mask][xp.where(gt_labels > 0)[0], gt_label[gt_label > 0]],
+            gt_loc, 1)) / n_sample
         conf_loss += F.softmax_cross_entropy(confs[mask], gt_label)
 
     loc_loss /= len(indices)
