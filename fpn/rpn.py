@@ -177,8 +177,7 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
         fg_index = xp.where(gt_label == 1)[0]
         n_fg = int(batchsize_per_image * fg_ratio)
         if len(fg_index) > n_fg:
-            gt_label[xp.random.choice(
-                fg_index, size=len(fg_index) - n_fg, replace=False)] = -1
+            gt_label[_choice(fg_index, size=len(fg_index) - n_fg)] = -1
 
         if len(bboxes[i]) > 0:
             bg_index = xp.where(xp.logical_and(
@@ -211,3 +210,13 @@ def _argsort(x):
         return i
     else:
         return cuda.to_gpu(i)
+
+
+# to avoid out of memory
+def _choice(x, size):
+    xp = cuda.get_array_module(x)
+    y = np.random.choice(cuda.to_cpu(x), size, replace=False)
+    if xp is np:
+        return y
+    else:
+        return cuda.to_gpu(y)
