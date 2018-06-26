@@ -147,10 +147,11 @@ def main():
 
     def lr_schedule(updater):
         base_lr = 0.02
+        warm_up_rate = 1 / 3
 
         iteration = updater.iteration
         if iteration < 500:
-            rate = 0.1 + (1 - 0.1) / 500 * iteration
+            rate = warm_up_rate + (1 - warm_up_rate) * iteration / 500
         elif iteration < 60000:
             rate = 1
         elif iteration < 80000:
