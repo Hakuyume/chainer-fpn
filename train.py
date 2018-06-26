@@ -10,12 +10,13 @@ from chainer.training import extensions
 
 import chainermn
 
-import chainercv
 from chainercv.chainer_experimental.datasets.sliceable \
     import ConcatenatedDataset
 from chainercv.chainer_experimental.datasets.sliceable import TransformDataset
 from chainercv.datasets import coco_bbox_label_names
 from chainercv.datasets import COCOBboxDataset
+from chainercv.links import ResNet101
+from chainercv.links import ResNet50
 from chainercv import transforms
 
 from fpn import head_loss_post
@@ -119,11 +120,11 @@ def main():
     if args.model == 'resnet50':
         model = FasterRCNNFPNResNet50(n_fg_class=len(coco_bbox_label_names))
         copyparams(model.extractor.base,
-                   chainercv.links.ResNet50(pretrained_model='imagenet'))
+                   ResNet50(pretrained_model='imagenet', arch='he'))
     elif args.model == 'resnet101':
         model = FasterRCNNFPNResNet101(n_fg_class=len(coco_bbox_label_names))
         copyparams(model.extractor.base,
-                   chainercv.links.ResNet101(pretrained_model='imagenet'))
+                   ResNet101(pretrained_model='imagenet', arch='he'))
 
     model.use_preset('evaluate')
     train_chain = TrainChain(model)
