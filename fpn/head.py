@@ -48,11 +48,11 @@ class Head(chainer.Chain):
                     self.xp.empty((0, self._n_class), dtype=np.float32)))
                 continue
 
-            roi_iltrb = self.xp.hstack(
+            roi_iltrb = np.hstack(
                 (roi_indices[l][:, None], rois[l][:, [1, 0, 3, 2]])) \
                 .astype(np.float32)
             h = roi_align_2d(
-                h, roi_iltrb,
+                h, self.xp.array(roi_iltrb),
                 self._roi_size, self._roi_size,
                 self._scales[l], self._roi_sample_ratio)
 
@@ -70,11 +70,11 @@ class Head(chainer.Chain):
         return locs, confs
 
     def distribute(self, rois, roi_indices):
-        size = self.xp.sqrt(self.xp.prod(rois[:, 2:] - rois[:, :2], axis=1))
-        level = self.xp.floor(self.xp.log2(
+        size = np.sqrt(np.prod(rois[:, 2:] - rois[:, :2], axis=1))
+        level = np.floor(np.log2(
             size / self._canonical_scale + 1e-6)).astype(np.int32)
         # skip last level
-        level = self.xp.clip(
+        level = np.clip(
             level + len(self._scales) // 2, 0, len(self._scales) - 2)
 
         masks = [level == l for l in range(len(self._scales))]
@@ -85,10 +85,10 @@ class Head(chainer.Chain):
 
     def decode(self, rois, roi_indices, locs, confs,
                scales, sizes, nms_thresh, score_thresh):
-        rois = self.xp.vstack(rois)
-        roi_indices = self.xp.hstack(roi_indices)
-        locs = self.xp.vstack([loc.array for loc in locs])
-        confs = self.xp.vstack([conf.array for conf in confs])
+        rois = np.vstack(rois)
+        roi_indices = np.hstack(roi_indices)
+        locs = np.vstack([cuda.to_cpu(loc.array) for loc in locs])
+        confs = np.vstack([cuda.to_cpu(conf.array) for conf in confs])
 
         bboxes = []
         labels = []
@@ -99,24 +99,23 @@ class Head(chainer.Chain):
             loc = locs[mask]
             conf = confs[mask]
 
-            bbox = self.xp.broadcast_to(roi[:, None], loc.shape) / scales[i]
+            bbox = np.broadcast_to(roi[:, None], loc.shape) / scales[i]
             # tlbr -> yxhw
             bbox[:, :, 2:] -= bbox[:, :, :2]
             bbox[:, :, :2] += bbox[:, :, 2:] / 2
             # offset
             bbox[:, :, :2] += loc[:, :, :2] * bbox[:, :, 2:] * self.std[0]
-            bbox[:, :, 2:] *= self.xp.exp(
-                self.xp.minimum(loc[:, :, 2:] * self.std[1], exp_clip))
+            bbox[:, :, 2:] *= np.exp(
+                np.minimum(loc[:, :, 2:] * self.std[1], exp_clip))
             # yxhw -> tlbr
             bbox[:, :, :2] -= bbox[:, :, 2:] / 2
             bbox[:, :, 2:] += bbox[:, :, :2]
             # clip
-            bbox[:, :, :2] = self.xp.maximum(bbox[:, :, :2], 0)
-            bbox[:, :, 2:] = self.xp.minimum(
-                bbox[:, :, 2:], self.xp.array(sizes[i]))
+            bbox[:, :, :2] = np.maximum(bbox[:, :, :2], 0)
+            bbox[:, :, 2:] = np.minimum(bbox[:, :, 2:], np.array(sizes[i]))
 
-            conf = self.xp.exp(conf)
-            score = conf / self.xp.sum(conf, axis=1, keepdims=True)
+            conf = np.exp(conf)
+            score = conf / np.sum(conf, axis=1, keepdims=True)
 
             bbox, label, score = _suppress(
                 bbox, score, nms_thresh, score_thresh)
@@ -136,8 +135,6 @@ class Caffe2FCUniform(chainer.initializer.Initializer):
 
 
 def _suppress(raw_bbox, raw_score, nms_thresh, score_thresh):
-    xp = cuda.get_array_module(raw_bbox, raw_score)
-
     bbox = []
     label = []
     score = []
@@ -154,12 +151,12 @@ def _suppress(raw_bbox, raw_score, nms_thresh, score_thresh):
         score_l = score_l[indices]
 
         bbox.append(bbox_l)
-        label.append(xp.array((l,) * len(bbox_l)))
+        label.append(np.array((l,) * len(bbox_l)))
         score.append(score_l)
 
-    bbox = xp.vstack(bbox).astype(np.float32)
-    label = xp.hstack(label).astype(np.int32)
-    score = xp.hstack(score).astype(np.float32)
+    bbox = np.vstack(bbox).astype(np.float32)
+    label = np.hstack(label).astype(np.int32)
+    score = np.hstack(score).astype(np.float32)
     return bbox, label, score
 
 
@@ -168,20 +165,18 @@ def head_loss_pre(rois, roi_indices, std, bboxes, labels):
     batchsize_per_image = 512
     fg_ratio = 0.25
 
-    xp = cuda.get_array_module(*rois)
-
     n_level = len(rois)
-    roi_levels = xp.hstack(
-        xp.array((l,) * len(rois[l])) for l in range(n_level)).astype(np.int32)
-    rois = xp.vstack(rois).astype(np.float32)
-    roi_indices = xp.hstack(roi_indices).astype(np.int32)
+    roi_levels = np.hstack(
+        np.array((l,) * len(rois[l])) for l in range(n_level)).astype(np.int32)
+    rois = np.vstack(rois).astype(np.float32)
+    roi_indices = np.hstack(roi_indices).astype(np.int32)
 
     rois_yx = (rois[:, 2:] + rois[:, :2]) / 2
     rois_hw = rois[:, 2:] - rois[:, :2]
     indices = np.unique(cuda.to_cpu(roi_indices))
 
-    gt_locs = xp.empty_like(rois)
-    gt_labels = xp.empty_like(roi_indices)
+    gt_locs = np.empty_like(rois)
+    gt_labels = np.empty_like(roi_indices)
     for i in indices:
         mask = roi_indices == i
 
@@ -191,31 +186,31 @@ def head_loss_pre(rois, roi_indices, std, bboxes, labels):
 
             gt_loc = bboxes[i][gt_index].copy()
         else:
-            gt_loc = xp.empty_like(rois[mask])
+            gt_loc = np.empty_like(rois[mask])
         # tlbr -> yxhw
         gt_loc[:, 2:] -= gt_loc[:, :2]
         gt_loc[:, :2] += gt_loc[:, 2:] / 2
         # offset
         gt_loc[:, :2] = (gt_loc[:, :2] - rois_yx[mask]) / \
             rois_hw[mask] / std[0]
-        gt_loc[:, 2:] = xp.log(gt_loc[:, 2:] / rois_hw[mask]) / std[1]
+        gt_loc[:, 2:] = np.log(gt_loc[:, 2:] / rois_hw[mask]) / std[1]
 
         if len(bboxes[i]) > 0:
             gt_label = labels[i][gt_index] + 1
             gt_label[iou.max(axis=1) < thresh] = 0
         else:
-            gt_label = xp.zeros((cuda.to_cpu(mask.sum()),), dtype=np.int32)
+            gt_label = np.zeros((cuda.to_cpu(mask.sum()),), dtype=np.int32)
 
-        fg_index = xp.where(gt_label > 0)[0]
+        fg_index = np.where(gt_label > 0)[0]
         n_fg = int(batchsize_per_image * fg_ratio)
         if len(fg_index) > n_fg:
-            gt_label[xp.random.choice(
+            gt_label[np.random.choice(
                 fg_index, size=len(fg_index) - n_fg, replace=False)] = -1
 
-        bg_index = xp.where(gt_label == 0)[0]
+        bg_index = np.where(gt_label == 0)[0]
         n_bg = batchsize_per_image - (gt_label > 0).sum()
         if len(bg_index) > n_bg:
-            gt_label[xp.random.choice(
+            gt_label[np.random.choice(
                 bg_index, size=len(bg_index) - n_bg, replace=False)] = -1
 
         gt_locs[mask] = gt_loc
@@ -243,9 +238,9 @@ def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
 
     xp = cuda.get_array_module(locs.array, confs.array)
 
-    roi_indices = xp.hstack(roi_indices).astype(np.int32)
-    gt_locs = xp.vstack(gt_locs).astype(np.float32)
-    gt_labels = xp.hstack(gt_labels).astype(np.int32)
+    roi_indices = np.hstack(roi_indices).astype(np.int32)
+    gt_locs = np.vstack(gt_locs).astype(np.float32)
+    gt_labels = np.hstack(gt_labels).astype(np.int32)
 
     indices = np.unique(cuda.to_cpu(roi_indices))
 
@@ -258,9 +253,10 @@ def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
 
         n_sample = mask.sum()
         loc_loss += F.sum(smooth_l1(
-            locs[mask][xp.where(gt_label > 0)[0], gt_label[gt_label > 0]],
-            gt_loc[gt_label > 0], 1)) / n_sample
-        conf_loss += F.softmax_cross_entropy(confs[mask], gt_label)
+            locs[mask][xp.array(np.where(gt_label > 0)[0]),
+                       xp.array(gt_label[gt_label > 0])],
+            xp.array(gt_loc[gt_label > 0]), 1)) / n_sample
+        conf_loss += F.softmax_cross_entropy(confs[mask], xp.array(gt_label))
 
     loc_loss /= len(indices)
     conf_loss /= len(indices)

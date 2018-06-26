@@ -34,12 +34,10 @@ class TrainChain(chainer.Chain):
 
     def __call__(self, imgs, bboxes, labels):
         x, scales = self.model.prepare(imgs)
-        bboxes = [self.xp.array(bbox) * scale
-                  for bbox, scale in zip(bboxes, scales)]
-        labels = [self.xp.array(label) for label in labels]
+        bboxes = [bbox * scale for bbox, scale in zip(bboxes, scales)]
 
         with chainer.using_config('train', False):
-            hs = self.model.extractor(x)
+            hs = self.model.extractor(self.xp.array(x))
 
         rpn_locs, rpn_confs = self.model.rpn(hs)
         anchors = self.model.rpn.anchors(h.shape[2:] for h in hs)
@@ -51,11 +49,10 @@ class TrainChain(chainer.Chain):
 
         rois, roi_indices = self.model.rpn.decode(
             rpn_locs, rpn_confs, anchors, x.shape)
-        rois = self.xp.vstack([rois] + bboxes)
-        roi_indices = self.xp.hstack(
+        rois = np.vstack([rois] + bboxes)
+        roi_indices = np.hstack(
             [roi_indices]
-            + [self.xp.array((i,) * len(bbox))
-               for i, bbox in enumerate(bboxes)])
+            + [np.array((i,) * len(bbox)) for i, bbox in enumerate(bboxes)])
         rois, roi_indices = self.model.head.distribute(rois, roi_indices)
         rois, roi_indices, head_gt_locs, head_gt_labels = head_loss_pre(
             rois, roi_indices, self.model.head.std, bboxes, labels)

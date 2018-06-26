@@ -47,14 +47,11 @@ class FasterRCNN(chainer.Chain):
         x, scales = self.prepare(imgs)
 
         with chainer.using_config('train', False), chainer.no_backprop_mode():
-            rois, roi_indices, head_locs, head_confs = self(x)
+            rois, roi_indices, head_locs, head_confs = self(self.xp.array(x))
         bboxes, labels, scores = self.head.decode(
             rois, roi_indices, head_locs, head_confs,
             scales, sizes, self.nms_thresh, self.score_thresh)
 
-        bboxes = [cuda.to_cpu(bbox) for bbox in bboxes]
-        labels = [cuda.to_cpu(label) for label in labels]
-        scores = [cuda.to_cpu(score) for score in scores]
         return bboxes, labels, scores
 
     def prepare(self, imgs):
@@ -78,5 +75,4 @@ class FasterRCNN(chainer.Chain):
             _, H, W = img.shape
             x[i, :, :H, :W] = img
 
-        x = self.xp.array(x)
         return x, scales
