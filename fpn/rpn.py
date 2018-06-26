@@ -134,7 +134,7 @@ class RPN(chainer.Chain):
 def rpn_loss(locs, confs, anchors, sizes,  bboxes):
     fg_thresh = 0.7
     bg_thresh = 0.3
-    batchsize_per_image = 512
+    batchsize_per_image = 256
     fg_ratio = 0.25
 
     locs = F.concat(locs)
