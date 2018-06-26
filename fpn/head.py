@@ -69,7 +69,7 @@ class Head(chainer.Chain):
 
         return locs, confs
 
-    def split(self, rois, roi_indices):
+    def distribute(self, rois, roi_indices):
         size = self.xp.sqrt(self.xp.prod(rois[:, 2:] - rois[:, :2], axis=1))
         level = self.xp.floor(self.xp.log2(
             size / self._canonical_scale + 1e-6)).astype(np.int32)

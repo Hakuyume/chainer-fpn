@@ -55,7 +55,7 @@ class TrainChain(chainer.Chain):
             [roi_indices]
             + [self.xp.array((i,) * len(bbox))
                for i, bbox in enumerate(bboxes)])
-        rois, roi_indices = self.model.head.split(rois, roi_indices)
+        rois, roi_indices = self.model.head.distribute(rois, roi_indices)
         head_locs, head_confs = self.model.head(hs, rois, roi_indices)
         head_loc_loss, head_conf_loss = head_loss(
             head_locs, head_confs, rois, roi_indices,
