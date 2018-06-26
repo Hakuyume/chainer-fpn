@@ -92,7 +92,7 @@ def converter(batch, device=None):
 
 
 def copyparams(dst, src):
-    if isinstance(chainer.Chain, dst):
+    if isinstance(dst, chainer.Chain):
         for link in dst.children():
             copyparams(link, src[link.name])
     elif isinstance(dst, chainer.ChainList):
