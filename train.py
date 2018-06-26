@@ -10,6 +10,7 @@ from chainer.training import extensions
 
 import chainermn
 
+import chainercv
 from chainercv.chainer_experimental.datasets.sliceable \
     import ConcatenatedDataset
 from chainercv.chainer_experimental.datasets.sliceable import TransformDataset
@@ -89,11 +90,24 @@ def converter(batch, device=None):
     return tuple(list(v) for v in zip(*batch))
 
 
+def copyparams(dst, src):
+    if isinstance(chainer.Chain, dst):
+        for link in dst.children():
+            copyparams(link, src[link.name])
+    elif isinstance(dst, chainer.ChainList):
+        for i, link in enumerate(dst):
+            copyparams(link, src[i])
+    else:
+        dst.copyparams(src)
+        if isinstance(dst, L.BatchNormalization):
+            dst.avg_mean = src.avg_mean
+            dst.avg_var = src.avg_var
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--model', choices=('resnet50', 'resnet101'))
-    parser.add_argument('--pretrained-model')
     parser.add_argument('--batchsize', type=int, default=2)
     parser.add_argument('--out', default='result')
     parser.add_argument('--resume')
@@ -104,11 +118,12 @@ def main():
 
     if args.model == 'resnet50':
         model = FasterRCNNFPNResNet50(n_fg_class=len(coco_bbox_label_names))
+        copyparams(model.extractor.base,
+                   chainercv.links.ResNet50(pretrained_model='imagenet'))
     elif args.model == 'resnet101':
         model = FasterRCNNFPNResNet101(n_fg_class=len(coco_bbox_label_names))
-
-    if args.pretrained_model:
-        serializers.load_npz(args.pretrained_model, model.extractor.base)
+        copyparams(model.extractor.base,
+                   chainercv.links.ResNet101(pretrained_model='imagenet'))
 
     model.use_preset('evaluate')
     train_chain = TrainChain(model)
