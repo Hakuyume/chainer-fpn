@@ -170,7 +170,8 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
             anchors[:, 2:] < xp.array(sizes[i])).all(axis=1)
 
         if len(bboxes[i]) > 0:
-            gt_label[xp.where(mask)[0][iou[mask].argmax(axis=0)]] = 1
+            gt_label[xp.where(mask)[0]
+                     [(iou[mask] == iou[mask].max(axis=0)).any(axis=1)]] = 1
             gt_label[xp.logical_and(mask, iou.max(axis=1) >= fg_thresh)] = 1
 
         fg_index = xp.where(gt_label == 1)[0]
