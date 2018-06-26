@@ -196,8 +196,8 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
             confs[i][gt_label >= 0], gt_label[gt_label >= 0], reduce='no')) \
             / n_sample
 
-        loc_loss /= len(sizes)
-        conf_loss /= len(sizes)
+    loc_loss /= len(sizes)
+    conf_loss /= len(sizes)
 
     return loc_loss, conf_loss
 
