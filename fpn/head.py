@@ -209,14 +209,12 @@ def head_loss_pre(rois, roi_indices, std, bboxes, labels):
         fg_index = xp.where(gt_label > 0)[0]
         n_fg = int(batchsize_per_image * fg_ratio)
         if len(fg_index) > n_fg:
-            gt_label[xp.random.choice(
-                fg_index, size=len(fg_index) - n_fg, replace=False)] = -1
+            gt_label[_choice(fg_index, size=len(fg_index) - n_fg)] = -1
 
         bg_index = xp.where(gt_label == 0)[0]
         n_bg = batchsize_per_image - int((gt_label > 0).sum())
         if len(bg_index) > n_bg:
-            gt_label[xp.random.choice(
-                bg_index, size=len(bg_index) - n_bg, replace=False)] = -1
+            gt_label[_choice(bg_index, size=len(bg_index) - n_bg)] = -1
 
         gt_locs[mask] = gt_loc
         gt_labels[mask] = gt_label
@@ -266,3 +264,13 @@ def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
     conf_loss /= len(indices)
 
     return loc_loss, conf_loss
+
+
+# to avoid out of memory
+def _choice(x, size):
+    xp = cuda.get_array_module(x)
+    y = np.random.choice(cuda.to_cpu(x), size, replace=False)
+    if xp is np:
+        return y
+    else:
+        return cuda.to_gpu(y)
