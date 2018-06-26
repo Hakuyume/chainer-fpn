@@ -185,7 +185,7 @@ def rpn_loss(locs, confs, anchors, sizes,  bboxes):
                 mask, iou.max(axis=1) < bg_thresh))[0]
         else:
             bg_index = xp.where(mask)[0]
-        n_bg = batchsize_per_image - (gt_label == 1).sum()
+        n_bg = batchsize_per_image - int((gt_label == 1).sum())
         if len(bg_index) > n_bg:
             gt_label[bg_index[
                 xp.random.randint(len(bg_index), size=n_bg)]] = 0
