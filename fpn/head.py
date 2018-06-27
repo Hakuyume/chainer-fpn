@@ -204,7 +204,7 @@ def head_loss_pre(rois, roi_indices, std, bboxes, labels):
             gt_label = labels[i][gt_index] + 1
             gt_label[iou.max(axis=1) < thresh] = 0
         else:
-            gt_label = xp.zeros((cuda.to_cpu(mask.sum()),), dtype=np.int32)
+            gt_label = xp.zeros(int(mask.sum()), dtype=np.int32)
 
         fg_index = xp.where(gt_label > 0)[0]
         n_fg = int(batchsize_per_image * fg_ratio)
