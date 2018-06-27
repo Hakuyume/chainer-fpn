@@ -47,7 +47,7 @@ def main():
         use_crowded=True,
         return_area=True,
         return_crowded=True)
-    iterator = iterators.SerialIterator(
+    iterator = iterators.MultithreadIterator(
         dataset, 1, repeat=False, shuffle=False)
 
     in_values, out_values, rest_values = apply_to_iterator(
