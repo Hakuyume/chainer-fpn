@@ -18,6 +18,7 @@ def main():
     parser.add_argument('--gpu', type=int, default=-1)
     parser.add_argument('--model', choices=('resnet50', 'resnet101'))
     parser.add_argument('--caffe2-mean', action='store_true')
+    parser.add_argument('--batchsize', type=int, default=8)
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--pretrained-model')
     group.add_argument('--snapshot')
@@ -48,7 +49,7 @@ def main():
         return_area=True,
         return_crowded=True)
     iterator = iterators.MultithreadIterator(
-        dataset, 1, repeat=False, shuffle=False)
+        dataset, args.batchsize, repeat=False, shuffle=False)
 
     in_values, out_values, rest_values = apply_to_iterator(
         model.predict, iterator, hook=ProgressHook(len(dataset)))
