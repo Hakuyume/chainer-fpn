@@ -1,11 +1,22 @@
-# Feature Pyramid Networks
+# Feature Pyramid Networks for Object Detection
 
 ## Performance
+
+mmAP on COCO 2014 minival
 
 | backbone | original (Detectron) | ours (weight conversion) | ours (train) |
 |:-:|:-:|:-:|:-:|
 | ResNet50 | 36.7 % | 35.7 % | - |
 | ResNet101 | 39.4 % | 38.2 % | - |
+
+## Requirements
+
+- Python 3.6
+- Chainer 4.0+
+- [ChainerCV](https://github.com/chainer/chainercv) (currently we need to build from master branch)
+- ChainerMN 1.3
+- [COCO API](https://github.com/cocodataset/cocoapi)
+
 
 ## Demo
 
@@ -25,7 +36,23 @@ $ python3 caffe22npz.py e2e_faster_rcnn_R-50-FPN_1x.pkl faster_rcnn_fpn_resnet50
 $ python3 demo.py [--gpu <gpu>] --model resnet50 --caffe2-mean --pretrained-model faster_rcnn_fpn_resnet50_coco.npz <image>
 ```
 
-## Evaluation
+## Training
+```
+mpiexec -n <#gpu> python3 train.py --model resnet50
+```
+
+## Evaluatation
+For converted weights.
 ```
 $ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --caffe2-mean --pretrained-model faster_rcnn_fpn_resnet50_coco.npz
 ```
+
+For trained weights.
+```
+$ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --snapshot result/snapshot_iter_90000
+```
+
+## References
+1. T. Lin et al. "Feature Pyramid Networks for Object Detection" arXiv 2017
+2. [Detectron](https://github.com/facebookresearch/Detectron)
+3. [Mask R-CNN by @wkentaro](https://github.com/wkentaro/chainer-mask-rcnn) (for the implementation of RoIAlign)
