@@ -42,12 +42,12 @@ mpiexec -n <#gpu> python3 train.py --model resnet50
 ```
 
 ## Evaluatation
-For converted weights.
+For converted model.
 ```
 $ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --caffe2-mean --pretrained-model faster_rcnn_fpn_resnet50_coco.npz
 ```
 
-For trained weights.
+For trained model.
 ```
 $ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --snapshot result/snapshot_iter_90000
 ```
