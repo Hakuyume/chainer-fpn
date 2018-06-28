@@ -1,5 +1,7 @@
 # Feature Pyramid Networks for Object Detection
 
+This is an implementation of FPN (Feature Pyramid Networks) using Chainer
+
 ## Performance
 
 mmAP on COCO 2014 minival
