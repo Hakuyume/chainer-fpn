@@ -109,7 +109,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--model', choices=('resnet50', 'resnet101'))
-    parser.add_argument('--batchsize', type=int, default=2)
+    parser.add_argument('--batchsize', type=int, default=16)
     parser.add_argument('--out', default='result')
     parser.add_argument('--resume')
     args = parser.parse_args()
@@ -144,7 +144,8 @@ def main():
     indices = chainermn.scatter_dataset(indices, comm, shuffle=True)
     train = train.slice[indices]
 
-    train_iter = chainer.iterators.MultithreadIterator(train, args.batchsize)
+    train_iter = chainer.iterators.MultithreadIterator(
+        train, args.batchsize // comm.size)
 
     optimizer = chainermn.create_multi_node_optimizer(
         chainer.optimizers.MomentumSGD(), comm)
