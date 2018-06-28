@@ -56,6 +56,6 @@ $ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --snapshot result/snapshot
 ```
 
 ## References
-1. T. Lin et al. "Feature Pyramid Networks for Object Detection" arXiv 2017
+1. Tsung-Yi Lin et al. "Feature Pyramid Networks for Object Detection" CVPR 2017
 2. [Detectron](https://github.com/facebookresearch/Detectron)
 3. [Mask R-CNN by @wkentaro](https://github.com/wkentaro/chainer-mask-rcnn) (for the implementation of RoIAlign)
