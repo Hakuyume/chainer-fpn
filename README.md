@@ -42,6 +42,7 @@ $ python3 demo.py [--gpu <gpu>] --model resnet50 --caffe2-mean --pretrained-mode
 ```
 mpiexec -n <#gpu> python3 train.py --model resnet50
 ```
+Our experiments were conducted by 8 GPUs.
 
 ## Evaluatation
 For converted model.
