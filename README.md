@@ -6,7 +6,7 @@ This is an implementation of FPN (Feature Pyramid Networks) using Chainer
 
 mmAP on COCO 2014 minival
 
-| backbone | original (Detectron) | ours (weight conversion) | ours (train) |
+| backbone | original (Detectron) | ours (inference only) | ours (train & inference) |
 |:-:|:-:|:-:|:-:|
 | ResNet50 | 36.7 % | 35.7 % | - |
 | ResNet101 | 39.4 % | 38.2 % | - |
