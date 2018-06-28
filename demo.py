@@ -15,7 +15,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', type=int, default=-1)
     parser.add_argument('--model', choices=('resnet50', 'resnet101'))
-    parser.add_argument('--caffe2-mean', action='store_true')
+    parser.add_argument(
+        '--mean', choices=('chainercv', 'detectron'), default='chainercv')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--pretrained-model')
     group.add_argument('--snapshot')
@@ -24,10 +25,10 @@ def main():
 
     if args.model == 'resnet50':
         model = FasterRCNNFPNResNet50(n_fg_class=len(coco_bbox_label_names),
-                                      caffe2_mean=args.caffe2_mean)
+                                      mean=args.mean)
     elif args.model == 'resnet101':
         model = FasterRCNNFPNResNet101(n_fg_class=len(coco_bbox_label_names),
-                                       caffe2_mean=args.caffe2_mean)
+                                       mean=args.mean)
 
     if args.pretrained_model:
         chainer.serializers.load_npz(args.pretrained_model, model)

@@ -41,7 +41,7 @@ or
 $ python3 eval_coco.py [--gpu <gpu>] --model resnet101 --snapshot result/snapshot_iter_90000
 ```
 
-## Convert weights from Caffe2
+## Convert weights from Detectron
 
 1. Download weights from [Detectron's model zoo](https://github.com/facebookresearch/Detectron/blob/master/MODEL_ZOO.md#end-to-end-faster--mask-r-cnn-baselines).
 ```
@@ -51,13 +51,13 @@ $ curl -L https://s3-us-west-2.amazonaws.com/detectron/35857890/12_2017_baseline
 
 2. Convert weights.
 ```
-$ python3 caffe22npz.py e2e_faster_rcnn_R-50-FPN_1x.pkl faster_rcnn_fpn_resnet50_coco.npz
+$ python3 detectron2npz.py e2e_faster_rcnn_R-50-FPN_1x.pkl faster_rcnn_fpn_resnet50_coco.npz
 ```
 
-Note: Since the mean value in Caffe2 is different from that in ChainerCV,
-`--caffe2-mean` option should be specified for converted weights.
+Note: Since the mean value in Detectron is different from that in ChainerCV,
+`--mean=detectron` option should be specified for converted weights.
 ```
-$ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --caffe2-mean --pretrained-model faster_rcnn_fpn_resnet50_coco.npz
+$ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --mean=detectron --pretrained-model faster_rcnn_fpn_resnet50_coco.npz
 ```
 
 ## References
