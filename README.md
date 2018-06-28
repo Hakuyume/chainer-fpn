@@ -28,7 +28,7 @@ $ python3 demo.py [--gpu <gpu>] --model resnet50 --pretrained-model faster_rcnn_
 
 ## Training
 ```
-mpiexec -n <#gpu> python3 train_coco.py --model resnet101
+$ mpiexec -n <#gpu> python3 train_coco.py --model resnet101
 ```
 Our experiments were conducted with 8 GPUs.
 
