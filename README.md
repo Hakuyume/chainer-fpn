@@ -18,7 +18,7 @@ mmAP on COCO 2014 minival
 - CuPy 4.0+
 - [ChainerCV](https://github.com/chainer/chainercv) (we need to build from master branch)
 - ChainerMN 1.3
-- [COCO API](https://github.com/cocodataset/cocoapi)
+- [pycocotools](https://github.com/cocodataset/cocoapi)
 
 
 ## Demo
