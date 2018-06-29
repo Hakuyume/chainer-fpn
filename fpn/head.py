@@ -149,7 +149,10 @@ def _suppress(raw_bbox, raw_score, nms_thresh, score_thresh):
         bbox_l = bbox_l[mask]
         score_l = score_l[mask]
 
-        indices = utils.non_maximum_suppression(bbox_l, nms_thresh, score_l)
+        order = _argsort(-score_l)
+        bbox_l = bbox_l[order]
+        score_l = score_l[order]
+        indices = utils.non_maximum_suppression(bbox_l, nms_thresh)
         bbox_l = bbox_l[indices]
         score_l = score_l[indices]
 
@@ -264,6 +267,16 @@ def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
     conf_loss /= len(indices)
 
     return loc_loss, conf_loss
+
+
+# to avoid out of memory
+def _argsort(x):
+    xp = cuda.get_array_module(x)
+    i = np.argsort(cuda.to_cpu(x))
+    if xp is np:
+        return i
+    else:
+        return cuda.to_gpu(i)
 
 
 # to avoid out of memory
