@@ -8,7 +8,7 @@ mmAP on COCO 2014 minival
 
 | backbone | original (Detectron) | ours (inference only) | ours (train & inference) |
 |:-:|:-:|:-:|:-:|
-| ResNet50 | 36.7 % | 35.7 % | - |
+| ResNet50 | 36.7 % | 35.7 % | 37.1 % |
 | ResNet101 | 39.4 % | 38.2 % | 39.2 % |
 
 ## Requirements
@@ -23,23 +23,23 @@ mmAP on COCO 2014 minival
 
 ## Demo
 ```
-$ curl -LO https://github.com/Hakuyume/chainer-fpn/releases/download/assets/faster_rcnn_fpn_resnet101_coco.npz
-$ python3 demo.py [--gpu <gpu>] --model resnet50 --pretrained-model faster_rcnn_fpn_resnet101_coco.npz <image>
+$ curl -LO https://github.com/Hakuyume/chainer-fpn/releases/download/assets/faster_rcnn_fpn_resnet50_coco.npz
+$ python3 demo.py [--gpu <gpu>] --model resnet50 --pretrained-model faster_rcnn_fpn_resnet50_coco.npz <image>
 ```
 
 ## Training
 ```
-$ mpiexec -n <#gpu> python3 train_coco.py --model resnet101
+$ mpiexec -n <#gpu> python3 train_coco.py --model resnet50
 ```
 Our experiments were conducted with 8 GPUs.
 
 ## Evaluation
 ```
-$ python3 eval_coco.py [--gpu <gpu>] --model resnet101 --pretrained-model faster_rcnn_fpn_resnet101_coco.npz
+$ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --pretrained-model faster_rcnn_fpn_resnet50_coco.npz
 ```
 or
 ```
-$ python3 eval_coco.py [--gpu <gpu>] --model resnet101 --snapshot result/snapshot_iter_90000
+$ python3 eval_coco.py [--gpu <gpu>] --model resnet50 --snapshot result/snapshot_iter_90000
 ```
 
 ## Convert weights from Detectron
