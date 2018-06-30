@@ -160,10 +160,11 @@ def main():
 
     updater = training.updaters.StandardUpdater(
         train_iter, optimizer, converter=converter, device=device)
-    trainer = training.Trainer(updater, (90000, 'iteration'), args.out)
+    trainer = training.Trainer(
+        updater, (90000 * 16 / args.batchsize, 'iteration'), args.out)
 
     def lr_schedule(updater):
-        base_lr = 0.02
+        base_lr = 0.02 * args.batchsize / 16
         warm_up_duration = 500
         warm_up_rate = 1 / 3
 
@@ -171,9 +172,9 @@ def main():
         if iteration < warm_up_duration:
             rate = warm_up_rate \
                 + (1 - warm_up_rate) * iteration / warm_up_duration
-        elif iteration < 60000:
+        elif iteration < 60000 * 16 / args.batchsize:
             rate = 1
-        elif iteration < 80000:
+        elif iteration < 80000 * 16 / args.batchsize:
             rate = 0.1
         else:
             rate = 0.01
