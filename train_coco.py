@@ -118,11 +118,13 @@ def main():
     device = comm.intra_rank
 
     if args.model == 'resnet50':
-        model = FasterRCNNFPNResNet50(n_fg_class=len(coco_bbox_label_names))
+        model = FasterRCNNFPNResNet50(
+            n_fg_class=len(coco_bbox_label_names), mean='chainercv')
         copyparams(model.extractor.base,
                    ResNet50(pretrained_model='imagenet', arch='he'))
     elif args.model == 'resnet101':
-        model = FasterRCNNFPNResNet101(n_fg_class=len(coco_bbox_label_names))
+        model = FasterRCNNFPNResNet101(
+            n_fg_class=len(coco_bbox_label_names), mean='chainercv')
         copyparams(model.extractor.base,
                    ResNet101(pretrained_model='imagenet', arch='he'))
 
