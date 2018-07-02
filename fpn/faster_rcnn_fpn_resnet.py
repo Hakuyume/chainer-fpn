@@ -15,6 +15,7 @@ def _make_fpn(cls, mean):
     base.pick = ('res2', 'res3', 'res4', 'res5')
     base.remove_unused()
 
+    assert(mean in {'chainercv', 'detectron'})
     if mean == 'detectron':
         base.mean = np.array((122.7717, 115.9465, 102.9801))[:, None, None]
     base.pool1 = lambda x: F.max_pooling_2d(
