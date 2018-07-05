@@ -67,7 +67,7 @@ def main():
     print()
     for area in ('all', 'large', 'medium', 'small'):
         print('mmAP ({}):'.format(area),
-              result['map/iou=0.50:0.95/area={}/maxDets=100'.format(area)])
+              result['map/iou=0.50:0.95/area={}/max_dets=100'.format(area)])
 
 
 if __name__ == '__main__':
