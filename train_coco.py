@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 
 import chainer
+from chainer.dataset import to_device
 import chainer.links as L
 from chainer.optimizer_hooks import WeightDecay
 from chainer import serializers
@@ -24,6 +25,7 @@ from fpn import head_loss_pre
 from fpn import FasterRCNNFPNResNet101
 from fpn import FasterRCNNFPNResNet50
 from fpn import ManualScheduler
+from fpn import prepare
 from fpn import rpn_loss
 
 
@@ -34,22 +36,14 @@ class TrainChain(chainer.Chain):
         with self.init_scope():
             self.model = model
 
-    def __call__(self, imgs, bboxes, labels):
-        x, scales = self.model.prepare(imgs)
-        bboxes = [self.xp.array(bbox) * scale
-                  for bbox, scale in zip(bboxes, scales)]
-        labels = [self.xp.array(label) for label in labels]
-
+    def __call__(self, x, bboxes, labels, sizes):
         with chainer.using_config('train', False):
             hs = self.model.extractor(x)
 
         rpn_locs, rpn_confs = self.model.rpn(hs)
         anchors = self.model.rpn.anchors(h.shape[2:] for h in hs)
         rpn_loc_loss, rpn_conf_loss = rpn_loss(
-            rpn_locs, rpn_confs, anchors,
-            [(int(img.shape[1] * scale), int(img.shape[2] * scale))
-             for img, scale in zip(imgs, scales)],
-            bboxes)
+            rpn_locs, rpn_confs, anchors, sizes, bboxes)
 
         rois, roi_indices = self.model.rpn.decode(
             rpn_locs, rpn_confs, anchors, x.shape)
@@ -75,20 +69,42 @@ class TrainChain(chainer.Chain):
         return loss
 
 
-def transform(in_data):
-    img, bbox, label = in_data
+class Transform(object):
 
-    img, params = transforms.random_flip(
-        img, x_random=True, return_param=True)
-    bbox = transforms.flip_bbox(
-        bbox, img.shape[1:], x_flip=params['x_flip'])
+    def __init__(self, model):
+        self._mean = model.extractor.mean
+        self._min_size = model.min_size
+        self._max_size = model.max_size
+        self._stride = model.stride
 
-    return img, bbox, label
+    def __call__(self, in_data):
+        img, bbox, label = in_data
+
+        img, params = transforms.random_flip(
+            img, x_random=True, return_param=True)
+        bbox = transforms.flip_bbox(
+            bbox, img.shape[1:], x_flip=params['x_flip'])
+
+        x, scales = prepare(
+            [img], self._mean, self._min_size, self._max_size, self._stride)
+        x = x[0]
+        bbox = bbox * scales[0]
+        size = np.array(
+            (int(img.shape[1] * scales[0]), int(img.shape[2] * scales[0])))
+
+        return x, bbox, label, size
 
 
 def converter(batch, device=None):
-    # do not send data to gpu (device is ignored)
-    return tuple(list(v) for v in zip(*batch))
+    batch = list(zip(*batch))
+    for i in range(len(batch)):
+        shape = batch[i][0].shape
+        dtype = batch[i][0].dtype
+        if all(v.shape == shape and v.dtype is dtype for v in batch[i]):
+            batch[i] = to_device(device, np.array(batch[i]))
+        else:
+            batch[i] = [to_device(device, v) for v in batch[i]]
+    return tuple(batch)
 
 
 def copyparams(dst, src):
@@ -133,11 +149,12 @@ def main():
     chainer.cuda.get_device_from_id(device).use()
     train_chain.to_gpu()
 
+    transform = Transform(model)
     train = TransformDataset(
         ConcatenatedDataset(
             COCOBboxDataset(split='train'),
             COCOBboxDataset(split='valminusminival'),
-        ), ('img', 'bbox', 'label'), transform)
+        ), ('x', 'bbox', 'label', 'sizes'), transform)
 
     if comm.rank == 0:
         indices = np.arange(len(train))
