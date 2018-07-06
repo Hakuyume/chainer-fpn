@@ -47,7 +47,7 @@ class TrainChain(chainer.Chain):
 
         rois, roi_indices = self.model.rpn.decode(
             rpn_locs, rpn_confs, anchors, x.shape)
-        rois = self.xp.vstack([rois] + bboxes)
+        rois = self.xp.vstack([rois] + list(bboxes))
         roi_indices = self.xp.hstack(
             [roi_indices]
             + [self.xp.array((i,) * len(bbox))
