@@ -8,7 +8,6 @@ from fpn.head import head_loss_pre  # NOQA
 from fpn.faster_rcnn import FasterRCNN  # NOQA
 from fpn.faster_rcnn import prepare  # NOQA
 from fpn.faster_rcnn_fpn_resnet import FasterRCNNFPNResNet101  # NOQA
-from fpn.faster_rcnn_fpn_resnet import FasterRCNNFPNResNet152  # NOQA
 from fpn.faster_rcnn_fpn_resnet import FasterRCNNFPNResNet50  # NOQA
 from fpn.fpn import FPN  # NOQA
 from fpn.manual_scheduler import ManualScheduler  # NOQA
