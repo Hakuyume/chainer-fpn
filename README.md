@@ -9,7 +9,7 @@ mmAP on COCO 2014 minival
 | backbone | original (Detectron) | ours (inference only) | ours (train & inference) |
 |:-:|:-:|:-:|:-:|
 | ResNet50 | 36.7 % | 35.7 % | 37.1 % |
-| ResNet101 | 39.4 % | 38.2 % | 39.2 % |
+| ResNet101 | 39.4 % | 38.2 % | 39.5 % |
 
 ## Requirements
 
