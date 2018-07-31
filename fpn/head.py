@@ -238,7 +238,7 @@ def head_loss_pre(rois, roi_indices, std, bboxes, labels):
     return rois, roi_indices, gt_locs, gt_labels
 
 
-def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
+def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels, batchsize):
     locs = F.concat(locs, axis=0)
     confs = F.concat(confs, axis=0)
 
@@ -248,11 +248,9 @@ def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
     gt_locs = xp.vstack(gt_locs).astype(np.float32)
     gt_labels = xp.hstack(gt_labels).astype(np.int32)
 
-    indices = np.unique(cuda.to_cpu(roi_indices))
-
     loc_loss = 0
     conf_loss = 0
-    for i in indices:
+    for i in np.unique(cuda.to_cpu(roi_indices)):
         mask = roi_indices == i
         gt_loc = gt_locs[mask]
         gt_label = gt_labels[mask]
@@ -263,8 +261,8 @@ def head_loss_post(locs, confs, roi_indices, gt_locs, gt_labels):
             gt_loc[gt_label > 0], 1)) / n_sample
         conf_loss += F.softmax_cross_entropy(confs[mask], gt_label)
 
-    loc_loss /= len(indices)
-    conf_loss /= len(indices)
+    loc_loss /= batchsize
+    conf_loss /= batchsize
 
     return loc_loss, conf_loss
 

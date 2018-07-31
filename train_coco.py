@@ -63,7 +63,8 @@ class TrainChain(chainer.Chain):
             rois, roi_indices, self.model.head.std, bboxes, labels)
         head_locs, head_confs = self.model.head(hs, rois, roi_indices)
         head_loc_loss, head_conf_loss = head_loss_post(
-            head_locs, head_confs, roi_indices, head_gt_locs, head_gt_labels)
+            head_locs, head_confs,
+            roi_indices, head_gt_locs, head_gt_labels, len(x))
 
         loss = rpn_loc_loss + rpn_conf_loss + head_loc_loss + head_conf_loss
         chainer.reporter.report({
