@@ -1,3 +1,5 @@
+***This repository is not maintained. Please use [ChainerCV](https://github.com/chainer/chainercv/).***
+
 # Feature Pyramid Networks for Object Detection
 
 This is an implementation of FPN (Feature Pyramid Networks) using Chainer
